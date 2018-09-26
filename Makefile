@@ -11,7 +11,7 @@ $(OUTDIR)/chi: chi.c
 build: builddir $(OUTDIR)/chi
 
 run: build
-	env RUST_BACKTRACE=1 $(OUTDIR)/chi
+	$(OUTDIR)/chi 77>>logs
 
 clean:
 	rm -rf $(OUTDIR)
