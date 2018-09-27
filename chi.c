@@ -41,24 +41,24 @@ typedef uint64_t  u64;
 #define __max(x,y) ((x) > (y) ? : (x) : (y))
 #define __min(x,y) ((x) < (y) ? : (x) : (y))
 
-// TODO: define a fail() function
-
-// Check that given boolean is true, otherwise print format string and exit
-void fail_at_location_if(int has_failed, const char *loc, const char * msg, ...)
+// Print formatted error msg and exit.
+void fatal(const char * format, ...)
 {
-	if (!has_failed) {
-		return;
-	}
-	// TODO: specify a fd instead of stderr
-	fprintf(stderr, "%s[ ", loc);
         va_list args;
-        va_start(args, msg);
-        vfprintf(stderr, msg, args);
+        va_start(args, format);
+        vfprintf(stderr, format, args);
         va_end(args);
         fprintf(stderr, "\n");
         exit(1);
 }
-#define __fail_if(has_failed, format, ...) fail_at_location_if(has_failed, __LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
+
+// Check if condition is false or true respectively, otherwise print formatted message and exit.
+#define __fail_if2(condition, format, ...) if (condition) fatal(__LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
+#define __assert2(condition, format, ...) if (!(condition)) fatal(__LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
+// Same, but print the failed condition instead of a formatted message.
+#define __assert1(condition) __assert2(condition, "assert failed: \"" __stringize2(condition) "\"")
+#define __fail_if1(condition) __fail_if2(condition, "fatal condition: \"" __stringize2(condition) "\"")
+
 
 /***********
  * LOGGING *
@@ -104,7 +104,7 @@ int log_formatted_message(const char *format, ...)
 		r = s - 1;
 	}
 
-	assert(r < s);
+	__assert1(r < s);
 	buffer[r] = '\n';
 	return write(LOG_FILENO, buffer, r + 1);
 }
@@ -340,4 +340,8 @@ int main(int argc, char **args)
 	}
 
 	logm("exit");
+
+
+	//__assert1(2 < 1);
+	__fail_if1(1 < 4);
 }
