@@ -6,12 +6,12 @@ builddir:
 	mkdir -p $(OUTDIR)
 
 $(OUTDIR)/chi: chi.c
-	gcc -g -o $(OUTDIR)/chi $<
+	gcc -std=c99 -g -o $(OUTDIR)/chi $<
 
 build: builddir $(OUTDIR)/chi
 
 run: build
-	$(OUTDIR)/chi 77>>logs
+	$(OUTDIR)/chi
 
 clean:
 	rm -rf $(OUTDIR)
