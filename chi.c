@@ -11,7 +11,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-
+#include <chi/geometry.h>
 
 /*********
  * UTILS *
@@ -112,124 +112,6 @@ int log_formatted_message(const char *format, ...)
 #define logm(format, ...)  log_formatted_message(__LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
 #define logs(s)  logm("%s", s)
 
-
-
-/***********************
- * GEOMETRY PRIMITIVES *
- ***********************/
-
-
-struct vec {
-	i32 x;
-	i32 y;
-};
-typedef struct vec vec;
-
-struct rec {
-	union {
-		struct {
-			vec min;
-			vec max;
-		};
-		struct {
-			i32 x0;
-			i32 y0;
-			i32 x1;
-			i32 y1;
-		};
-	};
-};
-typedef struct rec rec;
-
-static inline vec v(i32 x ,i32 y)
-{
-	return (vec){
-		.x = x,
-		.y = y,
-	};
-}
-
-static inline rec r(vec min, vec max)
-{
-	return (rec){
-		.min = min,
-		.max = max,
-	};
-}
-
-static inline vec sub_vec_vec(vec v0, vec v1)
-{
-	return v(v0.x - v1.x, v0.y - v1.y);
-}
-
-static inline vec rec_diag(rec r)
-{
-	return sub_vec_vec(r.max, r.min);
-}
-
-static inline i32 rec_w(rec r)
-{
-	return r.x1 - r.x0;
-}
-
-static inline i32 rec_h(rec r)
-{
-	return r.y1 - r.y0;
-}
-
-static inline vec add_vec_vec(vec v0, vec v1)
-{
-	return v(v0.x + v1.x, v0.y + v1.y);
-}
-
-static inline rec add_vec_rec(vec v0, rec r1)
-{
-	return r(add_vec_vec(v0, r1.min), add_vec_vec(v0, r1.max));
-}
-
-static inline rec add_rec_vec(rec r0, vec v1)
-{
-	return add_vec_rec(v1, r0);
-}
-
-static inline rec add_rec_rec(rec r0, rec r1)
-{
-	return r(add_vec_vec(r0.min, r1.min), add_vec_vec(r0.max, r1.max));
-}
-
-static inline rec sub_rec_vec(rec r0, vec v1)
-{
-	return r(sub_vec_vec(r0.min, v1), sub_vec_vec(r0.max, v1));
-}
-
-// Generic adder for vec and rec.
-// TODO: support rec addition with a Minkowski sum + displacement ?
-#define add(a,b) _Generic((a),          \
-	rec:	add_rec_vec,            \
-	vec:	add_vec_other(b))((a),(b))
-
-#define add_vec_other(b) _Generic((b),  \
-	rec:	add_vec_rec,            \
-	vec:	add_vec_vec)
-
-#define sub(a,b) _Generic((a),          \
-	rec:	sub_rec_vec,            \
-	vec:	sub_vec_vec)((a),(b))
-
-
-char* vec_print(char *dst, size_t len, vec v)
-{
-	int n = snprintf(dst, len, "{.x=%d, .y=%d}", v.x, v.y);
-	return dst + n; //_min(n, len);
-}
-
-char* rec_print(char *dst, size_t len, rec r)
-{
-	i32 w = rec_w(r);
-	i32 h = rec_h(r);
-	int n = snprintf(dst, len, "{.x0=%d, .y0=%d, .x1=%d, .y1=%d, w=%d, .h=%d}", r.x0, r.y0, r.x1, r.y1, w, h);
-	return dst + n; //_min(n, len);
-}
 
 
 /************
