@@ -1,9 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
-
 #include <math.h>
-#include <fcntl.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,35 +9,15 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#include <chi/base.h>
 #include <chi/geometry.h>
+#include <chi/memory.h>
+
 
 /*********
  * UTILS *
  *********/
 
-
-#include <stdint.h>
-typedef int8_t    i8;
-typedef int16_t   i16;
-typedef int32_t   i32;
-typedef int64_t   i64;
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
-
-
-#define Kilo(x) (1024L * (x))
-#define Mega(x) (1024L * Kilo(x))
-#define Giga(x) (1024L * Mega(x))
-
-#define __stringize1(x) #x
-#define __stringize2(x) __stringize1(x)
-#define __LOC__ __FILE__ ":" __stringize2(__LINE__)
-
-// Careful: the result expr gets evaluated twice
-#define max(x,y) ((x) > (y) ? (x) : (y))
-#define min(x,y) ((x) < (y) ? (x) : (y))
 
 // Print formatted error msg and exit.
 void fatal(const char * format, ...)
@@ -62,49 +40,6 @@ void fatal(const char * format, ...)
 // TODO: replace strerror with just a mapping of errno values to errno symbols like ENOPERM
 #define __efail_if(condition) __fail_if2(condition, "fatal condition: \"" __stringize2(condition) "\" failed with: %s", strerror(errno))
 
-
-/**********
- * MEMORY *
- **********/
-
-struct slice {
-	u8 *start;
-	u8 *stop;
-};
-
-#define slice_wrap_string(string) s(string, string + sizeof(string) - 1)
-
-struct slice s(u8 *start, u8 *stop)
-{
-	return (struct slice) {
-		.start = start,
-		.stop = stop,
-	};
-}
-
-size_t slice_len(struct slice s)
-{
-	return s.stop - s.start;
-}
-
-struct slice slice_copy(struct slice dst, const struct slice src)
-{
-	size_t dst_len = slice_len(dst);
-	size_t src_len = slice_len(src);
-	size_t len = min(dst_len, src_len);
-	memcpy(dst.start, src.start, len);
-	return s(dst.start + len, dst.stop);
-}
-
-struct buffer {
-	char *memory;
-	size_t size;
-};
-
-struct slice buffer_to_slice(struct buffer b)
-{
-	return s(b.memory, b.memory + b.size);
-}
 
 /***********
  * LOGGING *
@@ -249,9 +184,9 @@ void term_render(struct buffer buffer, struct term_frame *frame)
 	struct slice slice = buffer_to_slice(buffer);
 
 	// How to use slice for copying immutable const char* into a mutable slice ?
-	slice = slice_copy(slice, slice_wrap_string(term_clear));
-	slice = slice_copy(slice, slice_wrap_string(term_cursor_hide));
-	slice = slice_copy(slice, slice_wrap_string(term_cursor_show));
+	slice = slice_copy_string(slice, term_clear);
+	slice = slice_copy_string(slice, term_cursor_hide);
+	slice = slice_copy_string(slice, term_cursor_show);
 }
 
 

@@ -1,4 +1,8 @@
+#ifndef __chi_geometry_
+#define __chi_geometry_
+
 #include <stdint.h>
+#include <stdio.h>
 
 struct vec {
 	int32_t x;
@@ -114,3 +118,5 @@ static char* rec_print(char *dst, size_t len, rec r)
 	int n = snprintf(dst, len, "{.x0=%d, .y0=%d, .x1=%d, .y1=%d, w=%d, .h=%d}", r.x0, r.y0, r.x1, r.y1, w, h);
 	return dst + n; //_min(n, len);
 }
+
+#endif
