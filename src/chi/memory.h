@@ -12,12 +12,14 @@ struct slice {
 	char *start;
 	char *stop;
 };
+typedef struct slice slice;
 
 // Delimits a memory segment
 struct memory {
 	char *memory;
 	size_t size;
 };
+typedef struct memory memory;
 
 // A memory buffer with an internal cursor for tracking appends.
 struct buffer {
@@ -25,6 +27,7 @@ struct buffer {
   size_t cursor;
 	size_t size;
 };
+typedef struct buffer buffer;
 
 #define slice_wrap_string(string) s(string, string + sizeof(string) - 1)
 
@@ -78,6 +81,14 @@ static void buffer_append(struct buffer *dst, const char* src, size_t srclen)
 	size_t len = min(buffer_capacity(*dst), srclen);
 	memcpy(dst->memory, src, len);
 }
+
+
+//#define mylen(a) _Generic((a), struct slice: ((size_t)((a).stop	- (a).start)))
+
+#define mylen(a) _Generic((a),          \
+	struct slice:   ((size_t)((a).stop	- (a).start)),  \
+	struct memory:	(a).size,   \
+	struct buffer:	(a).cursor)
 
 
 #endif

@@ -201,6 +201,10 @@ int main(int argc, char **args)
 
 	term_raw();
 
+	char buffer[64] = {};
+	struct slice ss = s(buffer, buffer + 64);
+	//size_t l = mylen(ss);
+
 	for (int i = 0; i < argc; i++) {
 		puts(args[i]);
 		puts("\n");
