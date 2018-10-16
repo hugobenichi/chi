@@ -24,4 +24,6 @@ typedef uint64_t  u64;
 #define max(x,y) ((x) > (y) ? (x) : (y))
 #define min(x,y) ((x) < (y) ? (x) : (y))
 
+#define _arraylen(ary)    (sizeof(ary)/sizeof(ary[0]))
+
 #endif

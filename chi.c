@@ -190,6 +190,100 @@ void term_render(struct buffer buffer, struct term_frame *frame)
 }
 
 
+
+
+/********
+ * TEST *
+ ********/
+
+int is_space(u8 c) {
+	return c == ' ' || c == '\t';
+}
+
+int is_not_space(u8 c) {
+	return !is_space(c);
+}
+
+struct keyval {
+	struct slice key;
+	struct slice val;
+};
+
+struct keyval keyval_from_line(struct slice s)
+{
+	struct keyval kv;
+
+	s = slice_split(&s, '#');
+
+	slice_while(&s, is_space);
+	kv.key = slice_while(&s, is_not_space);
+
+	slice_while(&s, is_space);
+	kv.val = slice_while(&s, is_not_space);
+
+	return kv;
+}
+
+struct mapped_file {
+	char name[256];
+	struct stat file_stat;
+	struct slice data;
+};
+
+int mapped_file_load(struct mapped_file *f, const char* path)
+{
+	memcpy(&f->name, path, _arraylen(f->name));
+
+	int fd = open(f->name, O_RDONLY);
+	__efail_if(fd < 0);
+
+	int r = fstat(fd, &f->file_stat);
+	__efail_if(r < 0);
+
+	int prot = PROT_READ;
+	int flags = MAP_SHARED;
+	int offset = 0;
+
+	size_t len = f->file_stat.st_size;
+	f->data.start = (u8*) mmap(NULL, len, prot, flags, fd, offset);
+	f->data.stop  = f->data.start + len;
+	__efail_if(f->data.start == MAP_FAILED);
+
+	close(fd);
+	return 0;
+}
+
+struct configuration {
+	int argument_a;
+	int argument_b;
+};
+
+int main_kv(int argc, char** args)
+{
+	struct mapped_file config;
+	mapped_file_load(&config, "./config.txt");
+
+	while (slice_len(config.data)) {
+		struct slice line = slice_take_line(&config.data);
+		if (slice_empty(line)) {
+			continue;
+		}
+
+		struct keyval kv = keyval_from_line(line);
+		if (slice_empty(kv.key)) {
+			continue;
+		}
+
+		const char* k = slice_to_string(kv.key);
+		const char* v = slice_to_string(kv.val);
+		if (slice_empty(kv.val)) {
+			printf("W: no val for key '%s'\n", k);
+		} else {
+			printf("key:%s val:%s\n", k, v);
+		}
+	}
+}
+
 /********
  * MAIN *
  ********/
