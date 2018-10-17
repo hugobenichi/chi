@@ -103,7 +103,7 @@ int log_formatted_message(const char *format, ...)
 #include <termios.h>
 
 static const char term_seq_finish[]                       = "\x1b[0m";
-static const char term_clear[]                            = "\x1bc";
+static const char term_clear[]                            = "\x1b" "c";
 static const char term_newline[]                          = "\r\n";
 static const char term_cursor_hide[]                      = "\x1b[?25l";
 static const char term_cursor_show[]                      = "\x1b[?25h";
