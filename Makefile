@@ -5,7 +5,7 @@ OUTDIR=build
 builddir:
 	mkdir -p $(OUTDIR)
 
-$(OUTDIR)/chi: chi.c src/chi/*
+$(OUTDIR)/chi: main.c src/chi/*
 	gcc -I./src -v -std=c99 -g -o $(OUTDIR)/chi $<
 
 build: builddir $(OUTDIR)/chi
