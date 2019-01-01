@@ -21,7 +21,7 @@ static inline void backtrace_print()
 
 static inline void read_binary(const char *path)
 {
-	struct mapped_file binary;
+	struct mapped_file binary = {};
 	mapped_file_load(&binary, path);
 
   // TODO: parse ELF symbols

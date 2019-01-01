@@ -40,7 +40,7 @@ typedef struct buffer buffer;
 
 // Slice operations
 
-struct slice s(char *start, char *stop)
+static inline struct slice s(char *start, char *stop)
 {
 	return (struct slice) {
 		.start = start,
@@ -48,7 +48,7 @@ struct slice s(char *start, char *stop)
 	};
 }
 
-struct slice s2(void* memory, size_t len)
+static inline struct slice s2(void* memory, size_t len)
 {
 	return (struct slice) {
 		.start = memory,
