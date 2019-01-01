@@ -15,20 +15,26 @@ static const char term_cursor_show[]                      = "\x1b[?25h";
 
 static struct termios termios_initial = {};
 
+static const char term_setup_sequence[] =
+	"\x1b[s"             // cursor save
+	"\x1b[?47h"          // switch offscreen
+	"\x1b[?1000h"        // mouse event on
+	"\x1b[?1002h"        // mouse tracking on
+	"\x1b[?1004h"        // switch focus event on
+	;
+
+static const char term_restore_sequence[] =
+	"\x1b[?1004l"        // switch focus event off
+	"\x1b[?1002l"        // mouse tracking off
+	"\x1b[?1000l"        // mouse event off
+	"\x1b[?47l"          // switch back to main screen
+	"\x1b[u"             // cursor restore
+	;
+
 static void term_restore();
 void term_init()
 {
-	int z;
-
 	__efail_if(tcgetattr(STDIN_FILENO, &termios_initial));
-	atexit(term_restore);
-
-	__efail_if(fprintf(stdout, "\x1b[s"));
-	__efail_if(fprintf(stdout, "\x1b[?47h"));
-	__efail_if(fprintf(stdout, "\x1b[?1000h"));
-	__efail_if(fprintf(stdout, "\x1b[?1002h"));
-	__efail_if(fprintf(stdout, "\x1b[?1004h"));
-	__efail_if(fflush(stdout));
 
 	struct termios termios_raw = termios_initial;
 	// Input modes
@@ -51,20 +57,20 @@ void term_init()
 	termios_raw.c_lflag &= ~IEXTEN;			// no extension
 	termios_raw.c_lflag &= ~ISIG;			// turn off sigint, sigquit, sigsusp
 	termios_raw.c_cc[VMIN] = 0;			// return each byte, or nothing when timeout
-	termios_raw.c_cc[VTIME] = 100;			// 100 * 100 ms timeout
-	termios_raw.c_cflag |= CS8;                        // 8 bits chars
+	termios_raw.c_cc[VTIME] = 1;			// 1* 100 ms timeout
+	termios_raw.c_cflag |= CS8;                     // 8 bits chars
+
+	__efail_if(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)) < 0);
+	__efail_if(fsync(STDOUT_FILENO));
 	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
+	atexit(term_restore);
 }
 
 static void term_restore()
 {
 	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
-	__efail_if(fprintf(stdout, "\x1b[?1004l"));
-	__efail_if(fprintf(stdout, "\x1b[?1002l"));
-	__efail_if(fprintf(stdout, "\x1b[?1000l"));
-	__efail_if(fprintf(stdout, "\x1b[?47l"));
-	__efail_if(fprintf(stdout, "\x1b[u"));
-	__efail_if(fflush(stdout));
+	__efail_if(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)) < 0);
+	__efail_if(fsync(STDOUT_FILENO));
 }
 
 void term_framebuffer_init(struct term_framebuffer* framebuffer, vec term_size)
@@ -87,14 +93,103 @@ void term_draw(struct term_framebuffer *framebuffer)
 vec term_get_size()
 {
 	struct winsize w = {};
-	int z = ioctl(1, TIOCGWINSZ, &w);
-	if (z < 0) {
+	if (ioctl(1, TIOCGWINSZ, &w) < 0) {
 		perror("window_get_size: ioctl() failed");
 	}
 	return v(w.ws_row, w.ws_col);
 }
 
+static inline struct input input_for_type(enum input_type type) {
+	return (struct input) {
+		.type = type,
+	};
+}
+
+static inline struct input input_for_key(enum input_key_code code) {
+	return (struct input) {
+		.type = INPUT_KEY,
+		.key = code,
+	};
+}
+
+static char pending_input_buffer[3] = {};
+static int pending_input_cursor = 0;
+static int pending_input_lastread = 0;
+
 struct input term_get_input()
 {
-	return (struct input) {};
+	// Consume any pending input first
+	if (pending_input_cursor > 0) {
+		char c = pending_input_buffer[pending_input_cursor];
+		pending_input_cursor++;
+		if (pending_input_cursor == pending_input_lastread) {
+			pending_input_cursor = 0;
+		}
+		return input_for_key(c);
+	}
+
+	const ssize_t n = read(STDIN_FILENO, pending_input_buffer, sizeof(pending_input_buffer));
+
+	// Terminal resize events send SIGWINCH signals which interrupt read()
+	if (n < 0 && errno == EINTR) {
+		return input_for_type(INPUT_RESIZE);
+	}
+
+	// Other error conditions
+	if (n < 0) {
+		return input_for_type(INPUT_ERROR);
+	}
+
+	// One normal key
+	if (n == 1) {
+		return input_for_key(pending_input_buffer[0]);
+	}
+
+	// Escape sequences
+	if (n == 3 && pending_input_buffer[1] == '[') {
+		switch (pending_input_buffer[2]) {
+		case 'Z':
+			return input_for_key(INPUT_KEY_ESCAPE_Z);
+		case 'A':
+			return input_for_key(INPUT_KEY_ARROW_UP);
+		case 'B':
+			return input_for_key(INPUT_KEY_ARROW_DOWN);
+		case 'C':
+			return input_for_key(INPUT_KEY_ARROW_RIGHT);
+		case 'D':
+			return input_for_key(INPUT_KEY_ARROW_LEFT);
+		case 'M':
+			// TODO: mouse event !
+			return input_for_type(INPUT_NONE);
+/*
+              Unix.read Unix.stdin buffer 0 input_buffer_len |> ignore ;
+              (* x10 mouse click mode. *)
+              (* TODO: add support for other modes: xterm-262, ... *)
+              let x10_position_reader c =
+                let c' = (Char.code c) - 33 in
+                if c' < 0 then c' + 255 else c'
+              in
+              let cx = Bytes.get buffer 1 |> x10_position_reader in
+              let cy = Bytes.get buffer 2 |> x10_position_reader in
+              Bytes.get buffer 0
+                |> Char.code
+                |> (land) 3 (* Ignore modifier keys *)
+                |> (function
+                  (* TODO: distinguish between left/middle/right buttons *)
+                  | 0
+                  | 1
+                  | 2   ->  Click (mk_v2 cx cy)
+                  | 3   ->  ClickRelease (mk_v2 cx cy)
+                  | cb  ->  fail (Printf.sprintf "unexpected mouse event %d,%d,%d" cb cx cy))
+*/
+		}
+	}
+
+	// Other inputs can happen when typing fast enough ctrl + [ and another key just after.
+	// In that case, return the first key and queue the remaining input
+
+	pending_input_cursor = 1;
+	pending_input_lastread = n;
+
+	return input_for_key(pending_input_buffer[0]);
 }

@@ -40,6 +40,8 @@ int main(int argc, char **args) {
 			case INPUT_MOUSE:
 				editor_process_input(&editor, input);
 				break;
+			case INPUT_ERROR:
+				break;
 			case INPUT_NONE:
 			case INPUT_UNKNOWN:
 				break;

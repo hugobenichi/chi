@@ -34,6 +34,15 @@ typedef uint64_t  u64;
 
 
 
+// Error and asserts
+//
+// tl;dr:
+//
+// fatal + code snippet capture -> __fail_if / __assert1
+// fatal + formatted message    -> __fail_if2 / __assert2
+// fatal lib call with errno + code snippet capture -> __efail_if
+// fatal lib call with errno + formatted message -> __efail_if2
+
 // Print formatted error msg and exit.
 static inline void fatal(const char * format, ...)
 {
@@ -50,11 +59,11 @@ static inline void fatal(const char * format, ...)
 #define __fail_if2(condition, format, ...) if (condition) fatal(__LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
 #define __assert2(condition, format, ...) if (!(condition)) fatal(__LOC__ " %s [ " format, __func__, ##__VA_ARGS__)
 
-// Same, but print the failed condition instead of a formatted message.
+// Same, but print the code expression of the failed condition instead of a formatted message.
 #define __assert1(condition) __assert2(condition, "assert failed: \"" __stringize2(condition) "\"")
 #define __fail_if(condition) __fail_if2(condition, "fatal condition: \"" __stringize2(condition) "\"")
 
-// Same, but print in addition the current errno message.
+// Same, but print in addition the current errno message.[
 // TODO: replace strerror with just a mapping of errno values to errno symbols like ENOPERM
 #define __efail_if(condition) __fail_if2(condition, "fatal condition: \"" __stringize2(condition) "\" failed with: %s", strerror(errno))
 #define __efail_if2(condition, format, ...) if (condition) fatal(__LOC__ " %s [ %s: " format, __func__, strerror(errno), ##__VA_ARGS__)
