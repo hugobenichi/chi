@@ -10,7 +10,6 @@ static int is_not_space(u8 c) {
 	return !is_space(c);
 }
 
-
 struct keyval {
 	struct slice key;
 	struct slice val;
@@ -31,7 +30,7 @@ static struct keyval keyval_from_line(struct slice s)
 	return kv;
 }
 
-int test_kv_load()
+void config_init()
 {
 	struct mapped_file config;
 	mapped_file_load(&config, "./config.txt");

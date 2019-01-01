@@ -13,30 +13,9 @@ static const char term_newline[]                          = "\r\n";
 static const char term_cursor_hide[]                      = "\x1b[?25l";
 static const char term_cursor_show[]                      = "\x1b[?25h";
 
-vec term_get_size()
-{
-	struct winsize w = {};
-	int z = ioctl(1, TIOCGWINSZ, &w);
-	if (z < 0) {
-		perror("window_get_size: ioctl() failed");
-	}
-	return v(w.ws_row, w.ws_col);
-}
-
 static struct termios termios_initial = {};
 
-static void term_restore()
-{
-	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
-	__efail_if(fprintf(stdout, "\x1b[?1004l"));
-	__efail_if(fprintf(stdout, "\x1b[?1002l"));
-	__efail_if(fprintf(stdout, "\x1b[?1000l"));
-	__efail_if(fprintf(stdout, "\x1b[?47l"));
-	__efail_if(fprintf(stdout, "\x1b[u"));
-	__efail_if(fflush(stdout));
-}
-
-
+static void term_restore();
 void term_init()
 {
 	int z;
@@ -77,12 +56,45 @@ void term_init()
 	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
 }
 
-void term_render(struct buffer buffer, struct term_frame *frame)
+static void term_restore()
 {
-	struct slice slice = buffer_to_slice(buffer);
+	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
+	__efail_if(fprintf(stdout, "\x1b[?1004l"));
+	__efail_if(fprintf(stdout, "\x1b[?1002l"));
+	__efail_if(fprintf(stdout, "\x1b[?1000l"));
+	__efail_if(fprintf(stdout, "\x1b[?47l"));
+	__efail_if(fprintf(stdout, "\x1b[u"));
+	__efail_if(fflush(stdout));
+}
+
+void term_framebuffer_init(struct term_framebuffer* framebuffer, vec term_size)
+{
+}
+
+// TODO: initialize in term_init
+static struct buffer renderbuffer;
+
+void term_draw(struct term_framebuffer *framebuffer)
+{
+	struct slice slice = buffer_to_slice(renderbuffer);
 
 	// How to use slice for copying immutable const char* into a mutable slice ?
 	slice = slice_copy_string(slice, term_clear);
 	slice = slice_copy_string(slice, term_cursor_hide);
 	slice = slice_copy_string(slice, term_cursor_show);
+}
+
+vec term_get_size()
+{
+	struct winsize w = {};
+	int z = ioctl(1, TIOCGWINSZ, &w);
+	if (z < 0) {
+		perror("window_get_size: ioctl() failed");
+	}
+	return v(w.ws_row, w.ws_col);
+}
+
+struct input term_get_input()
+{
+	return (struct input) {};
 }
