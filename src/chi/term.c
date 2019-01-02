@@ -61,7 +61,6 @@ void term_init()
 	termios_raw.c_cflag |= CS8;                     // 8 bits chars
 
 	__efail_if(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)) < 0);
-	__efail_if(fsync(STDOUT_FILENO));
 	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
 	atexit(term_restore);
 }
@@ -70,7 +69,6 @@ static void term_restore()
 {
 	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
 	__efail_if(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)) < 0);
-	__efail_if(fsync(STDOUT_FILENO));
 }
 
 void term_framebuffer_init(struct term_framebuffer* framebuffer, vec term_size)
