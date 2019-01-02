@@ -99,97 +99,120 @@ vec term_get_size()
 	return v(w.ws_row, w.ws_col);
 }
 
-static inline struct input input_for_type(enum input_type type) {
+static inline struct input input_for_error(int err) {
 	return (struct input) {
-		.type = type,
+		.code = INPUT_ERROR_CODE,
+		.errno_value = err,
 	};
 }
 
-static inline struct input input_for_key(enum input_key_code code) {
+static inline struct input input_for_code(enum input_code code) {
 	return (struct input) {
-		.type = INPUT_KEY,
-		.key = code,
+		.code = code,
 	};
 }
 
-static char pending_input_buffer[3] = {};
-static int pending_input_cursor = 0;
-static int pending_input_lastread = 0;
+static inline struct input input_for_key(char code) {
+	return (struct input) {
+		.code = code,
+	};
+}
+
+static char input_buffer[3] = {};
+static char *pending_input_cursor = NULL;
+static char *pending_input_end = NULL;
+
+static struct input term_get_mouse_input();
 
 struct input term_get_input()
 {
 	// Consume any pending input first
-	if (pending_input_cursor > 0) {
-		char c = pending_input_buffer[pending_input_cursor];
-		pending_input_cursor++;
-		if (pending_input_cursor == pending_input_lastread) {
-			pending_input_cursor = 0;
-		}
-		return input_for_key(c);
+	if (pending_input_cursor < pending_input_end) {
+		return input_for_key(*pending_input_cursor++);
 	}
 
-	const ssize_t n = read(STDIN_FILENO, pending_input_buffer, sizeof(pending_input_buffer));
+	const ssize_t n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer));
+
+	// Sanity check
+	if (n > 3) {
+		return input_for_error(EOVERFLOW);
+	}
 
 	// Terminal resize events send SIGWINCH signals which interrupt read()
 	if (n < 0 && errno == EINTR) {
-		return input_for_type(INPUT_RESIZE);
+		return input_for_code(INPUT_RESIZE_CODE);
 	}
 
 	// Other error conditions
 	if (n < 0) {
-		return input_for_type(INPUT_ERROR);
+		return input_for_error(errno);
 	}
 
 	// One normal key
 	if (n == 1) {
-		return input_for_key(pending_input_buffer[0]);
+		return input_for_key(input_buffer[0]);
 	}
 
-	// Escape sequences
-	if (n == 3 && pending_input_buffer[1] == '[') {
-		switch (pending_input_buffer[2]) {
+	// Escape sequences of the form "\x1b[ + key (+ opt data for mouse clicks).
+	// Unfortunately typing CTRL + [ and a key in the known cases below will trigger these codepaths.
+	if (n == 3 && input_buffer[1] == '[') {
+		switch (input_buffer[2]) {
 		case 'Z':
-			return input_for_key(INPUT_KEY_ESCAPE_Z);
+			return input_for_code(INPUT_KEY_ESCAPE_Z);
 		case 'A':
-			return input_for_key(INPUT_KEY_ARROW_UP);
+			return input_for_code(INPUT_KEY_ARROW_UP);
 		case 'B':
-			return input_for_key(INPUT_KEY_ARROW_DOWN);
+			return input_for_code(INPUT_KEY_ARROW_DOWN);
 		case 'C':
-			return input_for_key(INPUT_KEY_ARROW_RIGHT);
+			return input_for_code(INPUT_KEY_ARROW_RIGHT);
 		case 'D':
-			return input_for_key(INPUT_KEY_ARROW_LEFT);
+			return input_for_code(INPUT_KEY_ARROW_LEFT);
 		case 'M':
-			// TODO: mouse event !
-			return input_for_type(INPUT_NONE);
-/*
-              Unix.read Unix.stdin buffer 0 input_buffer_len |> ignore ;
-              (* x10 mouse click mode. *)
-              (* TODO: add support for other modes: xterm-262, ... *)
-              let x10_position_reader c =
-                let c' = (Char.code c) - 33 in
-                if c' < 0 then c' + 255 else c'
-              in
-              let cx = Bytes.get buffer 1 |> x10_position_reader in
-              let cy = Bytes.get buffer 2 |> x10_position_reader in
-              Bytes.get buffer 0
-                |> Char.code
-                |> (land) 3 (* Ignore modifier keys *)
-                |> (function
-                  (* TODO: distinguish between left/middle/right buttons *)
-                  | 0
-                  | 1
-                  | 2   ->  Click (mk_v2 cx cy)
-                  | 3   ->  ClickRelease (mk_v2 cx cy)
-                  | cb  ->  fail (Printf.sprintf "unexpected mouse event %d,%d,%d" cb cx cy))
-*/
+			return term_get_mouse_input();
 		}
 	}
 
 	// Other inputs can happen when typing fast enough ctrl + [ and another key just after.
 	// In that case, return the first key and queue the remaining input
+	pending_input_cursor = input_buffer + 1;
+	pending_input_end =  input_buffer + n;
 
-	pending_input_cursor = 1;
-	pending_input_lastread = n;
+	return input_for_key(input_buffer[0]);
+}
 
-	return input_for_key(pending_input_buffer[0]);
+static inline int mouse_coord_fixup(int coord) {
+	coord -= 33;
+	if (coord < 0) {
+		coord += 255;
+	}
+	return coord;
+}
+
+static struct input term_get_mouse_input()
+{
+	memset(input_buffer, 0, sizeof(input_buffer));
+	const ssize_t n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer));
+	if (n > 3) {
+		return input_for_error(EOVERFLOW);
+	}
+	if (n < 0 && errno == EINTR) {
+		return input_for_code(INPUT_RESIZE_CODE);
+	}
+	if (n < 0) {
+		return input_for_error(errno);
+	}
+
+	static enum input_code mouse_click_types[] = {
+		INPUT_MOUSE_LEFT,
+		INPUT_MOUSE_MIDDLE,
+		INPUT_MOUSE_RIGHT,
+		INPUT_MOUSE_RELEASE,
+	};
+
+	return (struct input) {
+		.code = mouse_click_types[input_buffer[0] & 0x3],
+		.mouse_click.x = mouse_coord_fixup(input_buffer[1]),
+		.mouse_click.y = mouse_coord_fixup(input_buffer[2]),
+	};
+
 }
