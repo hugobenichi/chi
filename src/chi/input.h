@@ -46,7 +46,9 @@ enum input_code {
   CTRL_CARET,
   CTRL_UNDERSCORE,
 
-  // all printiable ascii codes implicitly included here.
+  // first printable ascii code
+  SPACE,
+  // all other printable ascii codes implicitly included here.
 
   // last ascii code.
   DEL                         = '\x7f',

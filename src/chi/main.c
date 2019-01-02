@@ -26,6 +26,64 @@ void editor_process_input(struct editor *editor, struct input input)
 {
 }
 
+void print_input(struct input input)
+{
+	char *s = "UNKNOWN";
+	char buffer[128] = {};
+	if (is_printable_key(input.code)) {
+		sprintf(buffer, "KEY:%c", input.code);
+		s = buffer;
+	}
+	switch (input.code) {
+		case CTRL_AT:			s = "CTRL_AT"; break;
+		case CTRL_A:			s = "CTRL_A"; break;
+		case CTRL_B: 			s = "CTRL_B"; break;
+		case CTRL_C: 			s = "CTRL_C"; break;
+		case CTRL_D: 			s = "CTRL_D"; break;
+		case CTRL_E: 			s = "CTRL_E"; break;
+		case CTRL_F: 			s = "CTRL_F"; break;
+		case CTRL_G: 			s = "CTRL_G"; break;
+		case CTRL_H: 			s = "CTRL_H"; break;
+		case CTRL_I: 			s = "CTRL_I"; break;
+		case CTRL_J: 			s = "CTRL_J"; break;
+		case CTRL_K: 			s = "CTRL_K"; break;
+		case CTRL_L: 			s = "CTRL_L"; break;
+		case CTRL_M: 			s = "CTRL_M"; break;
+		case CTRL_N: 			s = "CTRL_N"; break;
+		case CTRL_O: 			s = "CTRL_O"; break;
+		case CTRL_P: 			s = "CTRL_P"; break;
+		case CTRL_Q: 			s = "CTRL_Q"; break;
+		case CTRL_R: 			s = "CTRL_R"; break;
+		case CTRL_S: 			s = "CTRL_S"; break;
+		case CTRL_T: 			s = "CTRL_T"; break;
+		case CTRL_U: 			s = "CTRL_U"; break;
+		case CTRL_V: 			s = "CTRL_V"; break;
+		case CTRL_W: 			s = "CTRL_W"; break;
+		case CTRL_X: 			s = "CTRL_X"; break;
+		case CTRL_Y: 			s = "CTRL_Y"; break;
+		case CTRL_Z: 			s = "CTRL_Z"; break;
+		case CTRL_LEFT_BRACKET:		s = "CTRL_LEFT_BRACKET"; break;
+		case CTRL_BACKSLASH:		s = "CTRL_BACKSLASH"; break;
+		case CTRL_RIGHT_BRACKET:	s = "CTRL_RIGHT_BRACKET"; break;
+		case CTRL_CARET:		s = "CTRL_CARET"; break;
+		case CTRL_UNDERSCORE:		s = "CTRL_UNDERSCORE"; break;
+		case SPACE:			s = "SPACE"; break;
+		case DEL:                       s = "DEL"; break;
+		case INPUT_RESIZE_CODE:         s = "RESIZE"; break;
+		case INPUT_KEY_ESCAPE_Z:        s = "ESC_Z"; break;
+		case INPUT_KEY_ARROW_UP:        s = "UP"; break;
+		case INPUT_KEY_ARROW_DOWN:      s = "DOWN"; break;
+		case INPUT_KEY_ARROW_RIGHT:     s = "RIGHT"; break;
+		case INPUT_KEY_ARROW_LEFT:      s = "LEFT"; break;
+		case INPUT_MOUSE_LEFT:          s = "MOUSE L"; break;
+		case INPUT_MOUSE_MIDDLE:        s = "MOUSE MID"; break;
+		case INPUT_MOUSE_RIGHT:         s = "MOUSE R"; break;
+		case INPUT_MOUSE_RELEASE:       s = "MOUSE RELEASE"; break;
+		case INPUT_ERROR_CODE:          s = "ERROR"; break;
+	}
+	printf("%s\n\r", s);
+}
+
 int main(int argc, char **args) {
 	log_init();
 	config_init();
@@ -37,6 +95,7 @@ int main(int argc, char **args) {
 
 	for (;;) {
 		struct input input = term_get_input();
+		print_input(input);
 		switch (input.code) {
 		case INPUT_RESIZE_CODE:
 			resize(&editor, &framebuffer);
