@@ -12,7 +12,46 @@ enum input_type {
 };
 
 enum input_code {
-  // all normal ascii codes are implicitly included in the first 127 values
+  // all ascii control codes
+  CTRL_AT,
+  CTRL_A,
+  CTRL_B,
+  CTRL_C,
+  CTRL_D,
+  CTRL_E,
+  CTRL_F,
+  CTRL_G,
+  CTRL_H,
+  CTRL_I,
+  CTRL_J,
+  CTRL_K,
+  CTRL_L,
+  CTRL_M,
+  CTRL_N,
+  CTRL_O,
+  CTRL_P,
+  CTRL_Q,
+  CTRL_R,
+  CTRL_S,
+  CTRL_T,
+  CTRL_U,
+  CTRL_V,
+  CTRL_W,
+  CTRL_X,
+  CTRL_Y,
+  CTRL_Z,
+  CTRL_LEFT_BRACKET,
+  CTRL_BACKSLASH,
+  CTRL_RIGHT_BRACKET,
+  CTRL_CARET,
+  CTRL_UNDERSCORE,
+
+  // all printiable ascii codes implicitly included here.
+
+  // last ascii code.
+  DEL                         = '\x7f',
+
+  // additional special codes representing other input sequences.
   INPUT_RESIZE_CODE           = 1000,
   INPUT_KEY_ESCAPE_Z          = 1001,
   INPUT_KEY_ARROW_UP          = 1002,
@@ -25,6 +64,15 @@ enum input_code {
   INPUT_MOUSE_RELEASE         = 1009,
   INPUT_ERROR_CODE            = 1010,
 };
+
+// Other "famous" keys mapping to control codes
+static const int ESC                   = CTRL_LEFT_BRACKET;
+static const int BACKSPACE             = CTRL_H;
+static const int TAB                   = CTRL_I;
+static const int LINE_FEED             = CTRL_J;
+static const int VTAB                  = CTRL_K;
+static const int NEW_PAGE              = CTRL_L;
+static const int ENTER                 = CTRL_M;
 
 struct input {
   enum input_code code;
@@ -58,6 +106,11 @@ static inline enum input_type input_type_of(struct input input)
   default:
       return INPUT_UNKNOWN;
   }
+}
+
+static inline int is_printable_key(int code)
+{
+  return ' ' <= code && code <= '~';
 }
 
 #endif
