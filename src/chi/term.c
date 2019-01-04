@@ -57,7 +57,7 @@ void term_init()
 	termios_raw.c_lflag &= ~IEXTEN;			// no extension
 	termios_raw.c_lflag &= ~ISIG;			// turn off sigint, sigquit, sigsusp
 	termios_raw.c_cc[VMIN] = 0;			// return each byte, or nothing when timeout
-	termios_raw.c_cc[VTIME] = 1;			// 1* 100 ms timeout
+	termios_raw.c_cc[VTIME] = 100;			// VTIME x 100 ms timeout
 	termios_raw.c_cflag |= CS8;                     // 8 bits chars
 
 	__efail_if(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)) < 0);
@@ -129,7 +129,12 @@ struct input term_get_input()
 		return input_for_key(*pending_input_cursor++);
 	}
 
-	const ssize_t n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer));
+	memset(input_buffer, 0, sizeof(input_buffer));
+	ssize_t n = 0;
+	// If timeout is set low enough, this turns into a polling loop.
+	while (!(n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer)))) {
+//printf("%s: %i,%i,%i\n\r", "get_input: read", input_buffer[0], input_buffer[1], input_buffer[2]);
+	}
 
 	// Sanity check
 	if (n > 3) {
