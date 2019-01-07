@@ -17,6 +17,8 @@ EXEC=chi
 
 all: builddir $(OUTDIR)/chi
 
+fullbuild: clean all
+
 run: all
 	$(OUTDIR)/$(EXEC)
 
@@ -26,6 +28,7 @@ clean:
 builddir:
 	mkdir -p $(OUTDIR)
 
+# TODO: add all header files as sources too !
 $(OUTDIR)/%.o: src/chi/%.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
