@@ -69,7 +69,57 @@ static inline void fatal(const char * format, ...)
 #define __efail_if2(condition, format, ...) if (condition) fatal(__LOC__ " %s [ %s: " format, __func__, strerror(errno), ##__VA_ARGS__)
 
 
-// TODO: additional macros that create error msg strings for function that don't want to fatal exit.
 
+enum err_code {
+  CHI_ERR_GENERIC = 1000,
+};
+
+struct err {
+  union {
+    int errno_val;
+    int is_error;
+  };
+  const char *loc;
+  const char *func;
+  struct err *cause;
+};
+
+static inline struct err err_new_proto(struct err err)
+{
+  if (err.cause) {
+    struct err *cause_copy = malloc(sizeof(struct err));
+    memcpy(cause_copy, err.cause, sizeof(struct err));
+    err.errno_val = err.cause->errno_val;
+    err.cause = cause_copy;
+  }
+  return err;
+}
+
+static inline void err_acknoledge(struct err err)
+{
+  struct err *e = err.cause;
+  while (e) {
+    struct err *f = e;
+    e = e->cause;
+    free(f);
+  }
+}
+
+static inline const char* error_msg(struct err err)
+{
+    switch (err.errno_val) {
+    case 0:                           return "Success";
+    // TODO: cover all normal errno values
+    case EINVAL:                      return "EINVAL";
+    case CHI_ERR_GENERIC:             return "Chi generic error";
+    default:                          return "Unknown error";
+    }
+}
+
+#define error(...) err_new_proto((struct err){ .errno_val=CHI_ERR_GENERIC, .loc=__LOC__, .func=__func__, ##__VA_ARGS__})
+#define error_because(errno_v) error(.errno_val=errno_v);
+#define error_wrap(err) error(.cause=&err);
+#define return_if_error(err) if (err.is_error) return error_wrap(err)
+#define noerror() error_because(0)
 
 #endif

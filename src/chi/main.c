@@ -92,7 +92,29 @@ static void print_input(struct input input)
 	printf("\n\r", s);
 }
 
+struct err foo() { return error_because(EINVAL); }
+//struct err foo() { return noerror(); }
+struct err foo1() { struct err e = foo(); return_if_error(e); return noerror(); }
+struct err foo2() { struct err e = foo1(); return_if_error(e); return noerror(); }
+struct err foo3() { struct err e = foo2(); return_if_error(e); return noerror(); }
+
 int main(int argc, char **args) {
+
+	struct err err = foo3();
+
+	if (err.is_error) {
+		printf("error: %s\n", error_msg(err));
+		struct err *e = &err;
+		while (e) {
+			// TODO: print cause
+			printf("  %s:%s\n", e->loc, e->func);
+			e = e->cause;
+		}
+		err_acknoledge(err);
+	}
+
+	if (1) return 0;
+
 	log_init();
 	config_init();
 	term_init();
