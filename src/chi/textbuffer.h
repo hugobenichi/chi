@@ -1,6 +1,8 @@
 #ifndef __chi_textbuffer__
 #define __chi_textbuffer__
 
+#include <chi/base.h>
+#include <chi/io.h>
 #include <chi/memory.h>
 #include <chi/geometry.h>
 
@@ -26,17 +28,20 @@ struct cursor {
   vec position;
 };
 
+
+// this is just an opaque handle
 struct textbuffer {
-  struct buffer append_buffer;
-  struct line *line_first;
-  struct line *line_last;
-  struct cursor_chain {
-    struct cursor *cursor;
-    struct cursor *next_cursor;
-  } cursors;
-  // TODO: operation buffer
 };
 
+
 // TODO: define all ops
+enum textbuffer_op {
+  TEXTBUFFER_OPEN,
+  TEXTBUFFER_TOUCH,
+  TEXTBUFFER_SAVE,
+  TEXTBUFFER_CLOSE,
+};
+
+struct err textbuffer_operation(struct textbuffer textbuffer, enum textbuffer_op op, void* args);
 
 #endif
