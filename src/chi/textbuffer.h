@@ -40,8 +40,16 @@ enum textbuffer_op {
   TEXTBUFFER_TOUCH,
   TEXTBUFFER_SAVE,
   TEXTBUFFER_CLOSE,
+
+  TEXTBUFFER_MAX,
 };
 
-struct err textbuffer_operation(struct textbuffer textbuffer, enum textbuffer_op op, void* args);
+struct textbuffer_command {
+  int op;
+  int arg_size;
+  void* args;
+};
+
+struct err textbuffer_operation(struct textbuffer textbuffer, struct textbuffer_command *command);
 
 #endif
