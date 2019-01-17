@@ -6,6 +6,7 @@
 #include <chi/memory.h>
 #include <chi/geometry.h>
 
+void textbuffer_init();
 
 // A single line of text, made of a linked list of struct slices.
 // Lines are linked together in a doubly-linked lists for simple navigation and insertions.

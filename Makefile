@@ -10,7 +10,14 @@ SOURCES=./src/chi/*.c
 #OBJECTS=$(SOURCES:.c=.o)
 #OBJS1=$(patsubst ./src/chi/%.c,$(OUTDIR)/%.o,./src/chi/*.c)
 OBJS1=$(patsubst ./src/chi/%.c,$(OUTDIR)/%.o,$(SOURCES))
-OBJS3=$(OUTDIR)/main.o $(OUTDIR)/config.o $(OUTDIR)/io.o $(OUTDIR)/log.o $(OUTDIR)/term.o $(OUTDIR)/textbuffer.o
+OBJS3=\
+	$(OUTDIR)/main.o \
+  $(OUTDIR)/config.o \
+  $(OUTDIR)/io.o \
+  $(OUTDIR)/log.o \
+  $(OUTDIR)/term.o \
+  $(OUTDIR)/textbuffer.o \
+  $(OUTDIR)/pool.o
 OBJECTS=$(OBJS3)
 TEST=$(patsubst x%,y%,xa   xb   xc)
 EXEC=chi
