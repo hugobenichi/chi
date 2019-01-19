@@ -3,7 +3,12 @@
 .DEFAULT_GOAL := all
 
 CC=gcc
-CFLAGS=-I./src -std=c99 -g
+WARNINGS=-W -Wall
+WARNINGS+=-Wno-initializer-overrides
+WARNINGS+=-Wno-unused-function
+WARNINGS+=-Wno-unused-parameter
+WARNINGS+=-Wno-unused-const-variable
+CFLAGS=-I./src -std=c99 -g $(WARNINGS)
 
 OUTDIR=build
 SOURCES=./src/chi/*.c

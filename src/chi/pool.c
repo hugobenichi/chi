@@ -26,6 +26,8 @@ struct pool* pool_init(size_t object_size, int capacity)
 	pool->used = 0;
 	pool->next_free_object = 0;
 	pool->last_free_object = last;
+
+	return pool;
 }
 
 int pool_get_index(struct pool *pool, void* object)

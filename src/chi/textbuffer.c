@@ -108,6 +108,7 @@ static void all_textbuffers_free(struct textbuffer_impl* textbuffer)
 
 static struct textbuffer_impl* textbuffer_alloc()
 {
+	return NULL;
 }
 
 

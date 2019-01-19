@@ -40,7 +40,7 @@ typedef struct buffer buffer;
 
 // Slice operations
 
-static inline struct slice s(char *start, char *stop)
+static inline struct slice s(void *start, void *stop)
 {
 	return (struct slice) {
 		.start = start,
@@ -101,14 +101,14 @@ static inline size_t slice_copy(struct slice dst, const struct slice src)
 #define slice_copy_ref(dst, p) slice_copy(dst, slize_around_ref(p))
 
 // TODO: rework the interface: this just cut a slice at n and both drop/take should be the same thing.
-static inline struct slice slice_drop(struct slice s, int n)
+static inline struct slice slice_drop(struct slice s, size_t n)
 {
   n = min(n, slice_len(s));
   s.start = s.start - n;
   return s;
 }
 
-static inline struct slice slice_take(struct slice s, int n)
+static inline struct slice slice_take(struct slice s, size_t n)
 {
   n = min(n, slice_len(s));
   s.stop = s.stop - n;

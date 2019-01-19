@@ -80,6 +80,7 @@ static void print_input(struct input input)
 	case INPUT_MOUSE_RIGHT:         s = "MOUSE R"; break;
 	case INPUT_MOUSE_RELEASE:       s = "MOUSE RELEASE"; break;
 	case INPUT_ERROR_CODE:          s = "ERROR"; break;
+	default:			break;
 	}
 	printf("%s", s);
 	switch (input.code) {
@@ -88,8 +89,10 @@ static void print_input(struct input input)
 	case INPUT_MOUSE_RIGHT:
 	case INPUT_MOUSE_RELEASE:
 		printf(": %i,%i", input.mouse_click.y, input.mouse_click.x);
+	default:
+		break;
 	}
-	printf("\n\r", s);
+	printf("\n\r");
 }
 
 struct err foo() { return error_because(EINVAL); }
@@ -133,6 +136,8 @@ int main(int argc, char **args) {
 		case CTRL_C:
 			// TODO: confirmation for saving buffers with pending changes.
 			return 0;
+		default:
+			break;
 		}
 		editor_render(&editor, &framebuffer);
 		term_draw(&framebuffer);
