@@ -8,10 +8,7 @@
 #include <chi/base.h>
 
 static const char term_seq_finish[]                       = "\x1b[0m";
-static const char term_clear[]                            = "\x1b" "c";
 static const char term_newline[]                          = "\r\n";
-static const char term_cursor_hide[]                      = "\x1b[?25l";
-static const char term_cursor_show[]                      = "\x1b[?25h";
 
 static struct termios termios_initial = {};
 
@@ -71,21 +68,37 @@ static void term_restore()
 	__efail_if(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)) < 0);
 }
 
-void term_framebuffer_init(struct term_framebuffer* framebuffer, vec term_size)
+void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
 {
+	__assert1(framebuffer);
+
+	framebuffer->window = term_size;
+	size_t grid_size = term_size.x * term_size.y;
+	framebuffer->buffer_len = grid_size;
+	framebuffer->text = realloc(framebuffer->text, grid_size);
+	framebuffer->fg_colors = realloc(framebuffer->fg_colors, sizeof(int) * grid_size);
+	framebuffer->bg_colors = realloc(framebuffer->bg_colors, sizeof(int) * grid_size);
+
+	buffer_ensure_size(&framebuffer->output_buffer, 0x10000);
+
+	__assert1(framebuffer->text);
+	__assert1(framebuffer->fg_colors);
+	__assert1(framebuffer->bg_colors);
+	__assert1(framebuffer->output_buffer.memory);
 }
 
-// TODO: initialize in term_init
-static struct buffer renderbuffer;
-
-void term_draw(struct term_framebuffer *framebuffer)
+void framebuffer_draw_to_term(struct framebuffer *framebuffer)
 {
-	struct slice slice = buffer_to_slice(renderbuffer);
+	struct buffer buffer = framebuffer->output_buffer;
+	buffer.cursor = 0;
 
 	// How to use slice for copying immutable const char* into a mutable slice ?
-	slice = slice_copy_string(slice, term_clear);
-	slice = slice_copy_string(slice, term_cursor_hide);
-	slice = slice_copy_string(slice, term_cursor_show);
+	buffer_append_cstring(&buffer, "\x1b" "c");		// term clear
+	buffer_append_cstring(&buffer, "\x1b[?25l");		// cursor hide: avoid cursor blinking
+	buffer_append_cstring(&buffer, "\x1b[?25h");		// cursor show
+
+	__efail_if(write(STDOUT_FILENO, buffer.memory, buffer.cursor) < 1);
+	// TODO: instead return error_because(errno);
 }
 
 vec term_get_size()

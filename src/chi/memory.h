@@ -183,12 +183,27 @@ static inline char* buffer_end(struct buffer dst) {
   return dst.memory + dst.cursor;
 }
 
+static void buffer_ensure_size(struct buffer *buffer, size_t size)
+{
+  if (size <= buffer->size) {
+    return;
+  }
+  buffer->memory = realloc(buffer->memory, size);
+}
+
+static void buffer_ensure_capacity(struct buffer *buffer, size_t additional_capacity)
+{
+  buffer_ensure_size(buffer, buffer->cursor + additional_capacity);
+}
 
 static void buffer_append(struct buffer *dst, const char* src, size_t srclen)
 {
-	size_t len = min(buffer_capacity(*dst), srclen);
-	memcpy(dst->memory, src, len);
+  buffer_ensure_capacity(dst, srclen);
+	memcpy(buffer_end(*dst), src, srclen);
 }
+
+#define buffer_append_cstring(dst, string)  buffer_append(dst, string, strlen(string))
+
 
 
 //#define mylen(a) _Generic((a), struct slice: ((size_t)((a).stop	- (a).start)))

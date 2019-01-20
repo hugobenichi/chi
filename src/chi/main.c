@@ -11,14 +11,14 @@ void editor_init(struct editor *editor, vec term_size)
 {
 }
 
-void editor_render(struct editor *editor, struct term_framebuffer *framebuffer)
+void editor_render(struct editor *editor, struct framebuffer *framebuffer)
 {
 }
 
-void resize(struct editor *editor, struct term_framebuffer *framebuffer)
+void resize(struct editor *editor, struct framebuffer *framebuffer)
 {
 	vec term_size = term_get_size();
-	term_framebuffer_init(framebuffer, term_size);
+	framebuffer_init(framebuffer, term_size);
 	editor_init(editor, term_size);
 }
 
@@ -100,11 +100,9 @@ struct err foo() { return error_because(EINVAL); }
 struct err foo1() { struct err e = foo(); return_if_error(e); return noerror(); }
 struct err foo2() { struct err e = foo1(); return_if_error(e); return noerror(); }
 struct err foo3() { struct err e = foo2(); return_if_error(e); return noerror(); }
-
-int main(int argc, char **args) {
-
+static void err_stack_trace_example()
+{
 	struct err err = foo3();
-
 	if (err.is_error) {
 		printf("error: %s\n", error_msg(err));
 		struct err *e = &err;
@@ -115,14 +113,14 @@ int main(int argc, char **args) {
 		}
 		err_acknoledge(err);
 	}
+}
 
-	if (1) return 0;
-
+int main(int argc, char **args) {
 	log_init();
 	config_init();
 	term_init();
 
-	struct term_framebuffer framebuffer = {};
+	struct framebuffer framebuffer = {};
 	struct editor editor = {};
 	resize(&editor, &framebuffer);
 
@@ -140,6 +138,6 @@ int main(int argc, char **args) {
 			break;
 		}
 		editor_render(&editor, &framebuffer);
-		term_draw(&framebuffer);
+		framebuffer_draw_to_term(&framebuffer);
 	}
 }
