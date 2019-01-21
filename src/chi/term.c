@@ -68,6 +68,12 @@ static void term_restore()
 	__efail_if(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)) < 0);
 }
 
+static const char* term_color_string(int fg, int bg)
+{
+	// TODO: decide on color encoding
+	return "";
+}
+
 void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
 {
 	__assert1(framebuffer);
@@ -93,15 +99,39 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 	buffer.cursor = 0;
 
 	// How to use slice for copying immutable const char* into a mutable slice ?
-	buffer_append_cstring(&buffer, "\x1b" "c");		// term clear
-	buffer_append_cstring(&buffer, "\x1b[?25l");		// cursor hide: avoid cursor blinking
-	buffer_append_cstring(&buffer, "\x1b[H");		// go home
+	buffer_append_cstring(&buffer, "\x1b" "c");		// clear term screen
+	buffer_append_cstring(&buffer, "\x1b[?25l");		// hide cursor to avoid cursor blinking
+	buffer_append_cstring(&buffer, "\x1b[H");		// go home, i.e top left
 
-	// TODO: print all sections
+	vec window = framebuffer->window;
+	c8* text = framebuffer->text;
+	c8* text_end = text + window.x * window.y;
+	int *fg = framebuffer->fg_colors;
+	int *bg = framebuffer->bg_colors;
+	int x = 0;
+	while (text < text_end) {
+		c8* section_start = text;
+		int current_fg = *fg;
+		int current_bg = *bg;
+		buffer_append_cstring(&buffer, term_color_string(current_fg, current_bg));
+		// Start sequence for colored string
+		while (x < window.x && *fg == current_fg && *bg == current_bg) {
+			x++;
+			text++;
+			fg++;
+			bg++;
+		}
+		buffer_append(&buffer, section_start, text - section_start);
+		buffer_append_cstring(&buffer, "\027[0m"); // Finish sequence for colored string
+		if (x == window.x) {
+			buffer_append_cstring(&buffer, "\r\n");
+			x = 0;
+		}
+	}
 
-	// Cursor: terminal cursor positions start at (1,1) instead of (0,0).
+	// put cursor: terminal cursor positions start at (1,1) instead of (0,0).
 	buffer_appendf(&buffer, "\027[%d;%dH", cursor.x + 1, cursor.y + 1);
-	buffer_append_cstring(&buffer, "\x1b[?25h");		// cursor show
+	buffer_append_cstring(&buffer, "\x1b[?25h");		// show cursor
 
 	__efail_if(write(STDOUT_FILENO, buffer.memory, buffer.cursor) < 1);
 	// TODO: instead return error_because(errno);

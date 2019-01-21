@@ -212,14 +212,15 @@ static void buffer_appendf_proto(struct buffer *dst, const char* format, int num
   va_list args;
   va_start(args, numargs);
 
-  retry: {
+  for (;;) {
     size_t capacity = buffer_capacity(*dst);
-    size_t n = vsnprint(buffer_end(*dst), capacity, format, args);
+    size_t n = vsnprintf(buffer_end(*dst), capacity, format, args);
     if (capacity < n) {
         buffer_ensure_capacity(dst, n);
-        goto retry;
+        continue;
     }
     dst->cursor += n;
+    break;
   }
 
   va_end(args);
