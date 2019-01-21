@@ -4,6 +4,8 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include <chi/base.h>
 
@@ -203,6 +205,25 @@ static void buffer_append(struct buffer *dst, const char* src, size_t srclen)
 }
 
 #define buffer_append_cstring(dst, string)  buffer_append(dst, string, strlen(string))
+
+#define buffer_appendf(dst, format, ...) buffer_appendf_proto(dst, format, NUMARGS(__VA_ARGS__), __VA_ARGS__)
+static void buffer_appendf_proto(struct buffer *dst, const char* format, int numargs, ...)
+{
+  va_list args;
+  va_start(args, numargs);
+
+  retry: {
+    size_t capacity = buffer_capacity(*dst);
+    size_t n = vsnprint(buffer_end(*dst), capacity, format, args);
+    if (capacity < n) {
+        buffer_ensure_capacity(dst, n);
+        goto retry;
+    }
+    dst->cursor += n;
+  }
+
+  va_end(args);
+}
 
 
 

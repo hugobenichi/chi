@@ -21,6 +21,6 @@ struct framebuffer {
 };
 
 void framebuffer_init(struct framebuffer* framebuffer, vec term_size);
-void framebuffer_draw_to_term(struct framebuffer *framebuffer);
+void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor);
 
 #endif

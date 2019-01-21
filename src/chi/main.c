@@ -138,6 +138,6 @@ int main(int argc, char **args) {
 			break;
 		}
 		editor_render(&editor, &framebuffer);
-		framebuffer_draw_to_term(&framebuffer);
+		framebuffer_draw_to_term(&framebuffer, v(0,0));
 	}
 }

@@ -33,6 +33,9 @@ typedef char      c8;
 
 #define _arraylen(ary)    (sizeof(ary)/sizeof(ary[0]))
 
+// Find statically the size of a __VA_ARGS__ list passed to a macroi.
+#define NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
+
 
 
 // Error and asserts

@@ -87,7 +87,7 @@ void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
 	__assert1(framebuffer->output_buffer.memory);
 }
 
-void framebuffer_draw_to_term(struct framebuffer *framebuffer)
+void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 {
 	struct buffer buffer = framebuffer->output_buffer;
 	buffer.cursor = 0;
@@ -95,6 +95,12 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer)
 	// How to use slice for copying immutable const char* into a mutable slice ?
 	buffer_append_cstring(&buffer, "\x1b" "c");		// term clear
 	buffer_append_cstring(&buffer, "\x1b[?25l");		// cursor hide: avoid cursor blinking
+	buffer_append_cstring(&buffer, "\x1b[H");		// go home
+
+	// TODO: print all sections
+
+	// Cursor: terminal cursor positions start at (1,1) instead of (0,0).
+	buffer_appendf(&buffer, "\027[%d;%dH", cursor.x + 1, cursor.y + 1);
 	buffer_append_cstring(&buffer, "\x1b[?25h");		// cursor show
 
 	__efail_if(write(STDOUT_FILENO, buffer.memory, buffer.cursor) < 1);
