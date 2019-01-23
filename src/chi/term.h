@@ -22,5 +22,10 @@ struct framebuffer {
 
 void framebuffer_init(struct framebuffer* framebuffer, vec term_size);
 void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor);
+void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
+void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
+void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
+
+//TODO: function for putting text: how to draw a text piece ?
 
 #endif

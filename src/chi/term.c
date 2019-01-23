@@ -1,5 +1,6 @@
 #include <chi/term.h>
 
+#include <assert.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/ioctl.h>
@@ -135,6 +136,61 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 
 	__efail_if(write(STDOUT_FILENO, buffer.memory, buffer.cursor) < 1);
 	// TODO: instead return error_because(errno);
+}
+
+static int clamp(int v, int lo, int hi)
+{
+	if (v < lo) return lo;
+	if (hi < v) return hi;
+	return v;
+}
+
+static void clamp_rec(rec *rec, vec window)
+{
+	rec->x0 = clamp(rec->x0, 0, window.x);
+	rec->y0 = clamp(rec->y0, 0, window.y);
+	rec->x1 = clamp(rec->x1, rec->x0, window.x);
+	rec->y1 = clamp(rec->y1, rec->y0, window.y);
+}
+
+void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
+{
+	// TODO: put this into a config file ?
+	static const int default_color_fg = 1;
+	static const int default_color_bg = 0;
+	static const c8 default_text = ' ';
+
+	vec window = framebuffer->window;
+	clamp_rec(&rec, window);
+
+	size_t offset = (size_t) rec.x0;
+	size_t width = (size_t) rec_w(rec);
+	for (int y = rec.y0; y < rec.y1; y++) {
+		offset += window.x;
+		memset(framebuffer->text + offset, default_text, width);
+	}
+	framebuffer_put_color_fg(framebuffer, default_color_fg, rec);
+	framebuffer_put_color_bg(framebuffer, default_color_bg, rec);
+}
+
+void fill_color_rec(int* color_array, vec window, int color, rec rec)
+{
+	clamp_rec(&rec, window);
+	for (int y = rec.y0; y < rec.y1; y++) {
+		for (int x = rec.x0; x < rec.x1; x++) {
+			*(color_array + window.x * y + x) = color;
+		}
+	}
+}
+
+void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec)
+{
+	fill_color_rec(framebuffer->fg_colors, framebuffer->window, fg, rec);
+}
+
+void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec)
+{
+	fill_color_rec(framebuffer->bg_colors, framebuffer->window, bg, rec);
 }
 
 vec term_get_size()
