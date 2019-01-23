@@ -193,6 +193,82 @@ void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec)
 	fill_color_rec(framebuffer->bg_colors, framebuffer->window, bg, rec);
 }
 
+struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec)
+{
+	vec window = framebuffer->window;
+	clamp_rec(&rec, window);
+	return (struct framebuffer_iter) {
+		.text = framebuffer->text,
+		.fg = framebuffer->fg_colors,
+		.bg = framebuffer->bg_colors,
+		.stride = window.x,
+		.line_length = rec_w(rec),
+		.line_max = rec_h(rec),
+		.line_current = 0,
+	};
+}
+
+void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset)
+{
+	offset = min(offset, iter->line_length);
+	iter->line_length -= offset;
+	iter->text += offset;
+	iter->fg += offset;
+	iter->bg += offset;
+}
+
+int framebuffer_iter_next(struct framebuffer_iter* iter)
+{
+	assert(iter->line_current <= iter->line_max);
+	int done = (iter->line_max - 1 <= iter->line_current);
+	if (!done) {
+		iter->text += iter->stride;
+		iter->fg += iter->stride * sizeof(int);
+		iter->bg += iter->stride * sizeof(int);
+		iter->line_current++;
+	}
+	return done;
+}
+
+int framebuffer_iter_prev(struct framebuffer_iter* iter)
+{
+	assert(0 <= iter->line_current);
+	int done = (iter->line_current == 0);
+	if (!done) {
+		iter->text -= iter->stride;
+		iter->fg -= iter->stride * sizeof(int);
+		iter->bg -= iter->stride * sizeof(int);
+		iter->line_current--;
+	}
+	return done;
+}
+
+size_t framebuffer_push_text(struct framebuffer_iter *iter, c8 *text, size_t size)
+{
+	size = min(size, iter->line_length);
+	memcpy(iter->text, text, size);
+	return size;
+}
+
+size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size)
+{
+	size = min(size, iter->line_length);
+	// TODO: I need a 4bytes memset !
+	for (size_t x = 0; x < iter->line_length; x++) {
+		*(iter->fg + x) = fg;
+	}
+	return size;
+}
+
+size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size)
+{
+	size = min(size, iter->line_length);
+	for (size_t x = 0; x < iter->line_length; x++) {
+		*(iter->bg + x) = bg;
+	}
+	return size;
+}
+
 vec term_get_size()
 {
 	struct winsize w = {};
@@ -227,6 +303,10 @@ static char *pending_input_end = NULL;
 
 static struct input term_get_mouse_input();
 
+// This function is not re-entrant. To make it re-entrant, stdin needs to be parametrized as a fd value since
+// term_get_input needs to own and see all the input byte stream on standard input anyway.
+// Making it re-entrant like so could help with testing or multi client / multi terminal setups.
+// Note that for testing only use cases, the stdin fd can be redirected with dup() anyway.
 struct input term_get_input()
 {
 	// Consume any pending input first

@@ -3,13 +3,12 @@
 
 #include <chi/geometry.h>
 #include <chi/memory.h>
-#include <chi/input.h>
+#include <chi/input.h> // TODO: fuse this other file back in there
 
 void term_init();
 vec term_get_size();
 struct input term_get_input();
 
-#define colors
 
 struct framebuffer {
   vec window;                     // size of the display
@@ -20,12 +19,40 @@ struct framebuffer {
   struct buffer output_buffer;    // append buffer for storing all control sequences and output text to the terminal for one frame.
 };
 
-void framebuffer_init(struct framebuffer* framebuffer, vec term_size);
+void framebuffer_init(struct framebuffer *framebuffer, vec term_size);
 void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor);
+// TODO: rewrite these using framebuffer_iter below.
 void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
 
-//TODO: function for putting text: how to draw a text piece ?
+
+// A framebuffer iterator allows to naviguate a subrectangle of a drawing framebuffer line by line, up or down.
+// All framebuffer iterator functions mutates the iterator passed by pointer.
+// However, it is safe to save a copy of an iterator and used it later.
+// If a framebuffer is resized, all existing iterators are invalidated.
+
+struct framebuffer_iter {
+  c8 *text;
+  int *fg;
+  int *bg;
+  size_t stride;
+  size_t line_length;
+  int line_max;
+  int line_current;
+};
+
+struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec);
+// Adds a constant horizontal offset, dropping framebuffer slots on the left.
+void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset);
+// Both these function returns true if the iterator can still be moved further in the same direction.
+// TODO: rethink the exact API of these function based on usage with loop constructs.
+int framebuffer_iter_next(struct framebuffer_iter *iter);
+int framebuffer_iter_prev(struct framebuffer_iter *iter);
+// These three functions return the number of slots into which bytes/colors were pushed.
+size_t framebuffer_push_text(struct framebuffer_iter *iter, c8 *text, size_t size);
+size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size);
+size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size);
+
 
 #endif
