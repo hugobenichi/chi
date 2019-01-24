@@ -21,7 +21,6 @@ struct framebuffer {
 
 void framebuffer_init(struct framebuffer *framebuffer, vec term_size);
 void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor);
-// TODO: rewrite these using framebuffer_iter below.
 void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
@@ -31,6 +30,7 @@ void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
 // All framebuffer iterator functions mutates the iterator passed by pointer.
 // However, it is safe to save a copy of an iterator and used it later.
 // If a framebuffer is resized, all existing iterators are invalidated.
+// Initially the iterator is set one step before the first line, it is necessary to 
 
 struct framebuffer_iter {
   c8 *text;
@@ -45,8 +45,9 @@ struct framebuffer_iter {
 struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec);
 // Adds a constant horizontal offset, dropping framebuffer slots on the left.
 void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset);
-// Both these function returns true if the iterator can still be moved further in the same direction.
-// TODO: rethink the exact API of these function based on usage with loop constructs.
+void framebuffer_iter_reset_first(struct framebuffer_iter *iter);
+void framebuffer_iter_reset_last(struct framebuffer_iter *iter);
+// Both these function returns true if the iterator was moved  can still be moved further in the same direction.
 int framebuffer_iter_next(struct framebuffer_iter *iter);
 int framebuffer_iter_prev(struct framebuffer_iter *iter);
 // These three functions return the number of slots into which bytes/colors were pushed.

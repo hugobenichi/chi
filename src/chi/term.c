@@ -160,17 +160,12 @@ void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
 	static const int default_color_bg = 0;
 	static const c8 default_text = ' ';
 
-	vec window = framebuffer->window;
-	clamp_rec(&rec, window);
-
-	size_t offset = (size_t) rec.x0;
-	size_t width = (size_t) rec_w(rec);
-	for (int y = rec.y0; y < rec.y1; y++) {
-		offset += window.x;
-		memset(framebuffer->text + offset, default_text, width);
+	struct framebuffer_iter iter = framebuffer_iter_make(framebuffer, rec);
+	while (framebuffer_iter_next(&iter)) {
+		memset(iter.text, default_text, iter.line_length);
+		framebuffer_push_fg(&iter, default_color_fg, iter.line_length);
+		framebuffer_push_bg(&iter, default_color_bg, iter.line_length);
 	}
-	framebuffer_put_color_fg(framebuffer, default_color_fg, rec);
-	framebuffer_put_color_bg(framebuffer, default_color_bg, rec);
 }
 
 void fill_color_rec(int* color_array, vec window, int color, rec rec)
@@ -204,7 +199,9 @@ struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, r
 		.stride = window.x,
 		.line_length = rec_w(rec),
 		.line_max = rec_h(rec),
-		.line_current = 0,
+		// Start just before the first line. Empty iterator with
+		// line_max = 0 will correctly not moved forward.
+		.line_current = -1,
 	};
 }
 
@@ -216,11 +213,21 @@ void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset)
 	iter->fg += offset;
 	iter->bg += offset;
 }
+void framebuffer_iter_reset_first(struct framebuffer_iter *iter)
+{
+	iter->line_current = -1;
+}
+
+void framebuffer_iter_reset_last(struct framebuffer_iter *iter)
+{
+	iter->line_current = iter->line_max;
+}
 
 int framebuffer_iter_next(struct framebuffer_iter* iter)
 {
+	assert(-1 <= iter->line_current);
 	assert(iter->line_current <= iter->line_max);
-	int done = (iter->line_max - 1 <= iter->line_current);
+	int done = (iter->line_current == iter->line_max);
 	if (!done) {
 		iter->text += iter->stride;
 		iter->fg += iter->stride * sizeof(int);
@@ -232,8 +239,9 @@ int framebuffer_iter_next(struct framebuffer_iter* iter)
 
 int framebuffer_iter_prev(struct framebuffer_iter* iter)
 {
-	assert(0 <= iter->line_current);
-	int done = (iter->line_current == 0);
+	assert(-1 <= iter->line_current);
+	assert(iter->line_current <= iter->line_max);
+	int done = (iter->line_current == -1);
 	if (!done) {
 		iter->text -= iter->stride;
 		iter->fg -= iter->stride * sizeof(int);
