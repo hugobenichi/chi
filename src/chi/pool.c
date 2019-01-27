@@ -1,5 +1,6 @@
 #include <chi/pool.h>
 
+#include <assert.h>
 #include <stdlib.h>
 
 size_t pool_total_memory(size_t object_size, int capacity)
@@ -9,11 +10,11 @@ size_t pool_total_memory(size_t object_size, int capacity)
 
 struct pool* pool_init(size_t object_size, int capacity)
 {
-	__assert1(object_size);
-	__assert1(capacity);
+	assert(object_size);
+	assert(capacity);
 
 	struct pool *pool = malloc(pool_total_memory(object_size, capacity));
-	__assert1(pool);
+	assert(pool);
 
 	int last = capacity - 1;
 	for (int i = 0; i < last; i++) {
@@ -35,16 +36,16 @@ int pool_get_index(struct pool *pool, void* object)
 	u8 *base= (u8*) (pool->free_object_map + pool->capacity);
 	u8 *obj = object;
 
-	__assert1(base <= obj);
-	__assert1(obj < base + pool->capacity * pool->object_size);
+	assert(base <= obj);
+	assert(obj < base + pool->capacity * pool->object_size);
 
 	return (obj - base) / pool->object_size;
 }
 
 void* pool_get_object(struct pool *pool, int object_index)
 {
-	__assert1(0 <= object_index);
-	__assert1(object_index < pool->capacity);
+	assert(0 <= object_index);
+	assert(object_index < pool->capacity);
 
 	int *object_base = pool->free_object_map + pool->capacity;
 	return (u8*)object_base + object_index * pool->capacity;
@@ -52,7 +53,7 @@ void* pool_get_object(struct pool *pool, int object_index)
 
 void* pool_new_object(struct pool *pool)
 {
-	__assert1(pool);
+	assert(pool);
 	if (pool_is_full(pool)) {
 		return NULL;
 	}
@@ -74,8 +75,8 @@ void pool_return_object(struct pool *pool, void* object)
 	pool->last_free_object = new_last;
 
 	int* free_object_map = pool->free_object_map;
-	__assert1(free_object_map[old_last] = old_last);
-	__assert1(free_object_map[new_last] = -1);
+	assert(free_object_map[old_last] = old_last);
+	assert(free_object_map[new_last] = -1);
 	free_object_map[old_last] = new_last;
 	free_object_map[new_last] = new_last;
 }

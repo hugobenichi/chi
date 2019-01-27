@@ -1,5 +1,6 @@
 #include <chi/io.h>
 
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 //#include <string.h>
@@ -27,11 +28,11 @@ int mapped_file_load(struct mapped_file *f, const char *path)
 	memcpy(f->name, path, maxlen);
 
 	int fd = open(f->name, O_RDONLY);
-	__efail_if2(fd < 0, "failed to open %s", f->name);
+	assertf_success(fd < 0, "failed to open %s", f->name);
 	// TODO: return error instead
 
 	int r = fstat(fd, &f->file_stat);
-	__efail_if2(r < 0, "failed to stat %s", f->name);
+	assertf_success(r < 0, "failed to stat %s", f->name);
 	// TODO: return error instead
 
 	int prot = PROT_READ;
@@ -41,7 +42,7 @@ int mapped_file_load(struct mapped_file *f, const char *path)
 
 	f->data.start = (u8*) mmap(NULL, len, prot, flags, fd, offset);
 	f->data.stop  = f->data.start + len;
-	__efail_if(f->data.start == MAP_FAILED);
+	assert(f->data.start != MAP_FAILED);
 
 	close(fd);
 	return 0;

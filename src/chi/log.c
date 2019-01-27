@@ -1,5 +1,6 @@
 #include <chi/log.h>
 
+#include <assert.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -17,15 +18,15 @@ const int LOG_FILENO = 77;
 void log_init()
 {
 	int fd = open("/dev/null", O_WRONLY);
-	__efail_if(fd < 0);
-	__efail_if(dup2(fd, LOG_FILENO) < 0);
+	assert(fd > 0);
+	assert(dup2(fd, LOG_FILENO) > 0);
 
 	is_init = 1;
 }
 
 int log_formatted_message(const char *format, ...)
 {
-	__assert1(is_init);
+	assert(is_init);
 
 	int s = LOG_BUFFER_SIZE;
 	char buffer[s];
@@ -37,7 +38,7 @@ int log_formatted_message(const char *format, ...)
 		r = s - 1;
 	}
 
-	__assert1(r < s);
+	assert(r < s);
 	buffer[r] = '\n';
 	return write(LOG_FILENO, buffer, r + 1);
 }

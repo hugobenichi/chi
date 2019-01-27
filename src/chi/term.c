@@ -32,7 +32,7 @@ static const char term_restore_sequence[] =
 static void term_restore();
 void term_init()
 {
-	__efail_if(tcgetattr(STDIN_FILENO, &termios_initial));
+	assert_success(tcgetattr(STDIN_FILENO, &termios_initial));
 
 	struct termios termios_raw = termios_initial;
 	// Input modes
@@ -58,15 +58,15 @@ void term_init()
 	termios_raw.c_cc[VTIME] = 100;			// VTIME x 100 ms timeout
 	termios_raw.c_cflag |= CS8;                     // 8 bits chars
 
-	__efail_if(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)) < 0);
-	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
+	assert_success(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)));
+	assert_success(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
 	atexit(term_restore);
 }
 
 static void term_restore()
 {
-	__efail_if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
-	__efail_if(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)) < 0);
+	assert_success(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
+	assert_success(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)));
 }
 
 static const char* term_color_string(int fg, int bg)
@@ -77,7 +77,7 @@ static const char* term_color_string(int fg, int bg)
 
 void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
 {
-	__assert1(framebuffer);
+	assert(framebuffer);
 
 	framebuffer->window = term_size;
 	size_t grid_size = term_size.x * term_size.y;
@@ -88,10 +88,10 @@ void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
 
 	buffer_ensure_size(&framebuffer->output_buffer, 0x10000);
 
-	__assert1(framebuffer->text);
-	__assert1(framebuffer->fg_colors);
-	__assert1(framebuffer->bg_colors);
-	__assert1(framebuffer->output_buffer.memory);
+	assert(framebuffer->text);
+	assert(framebuffer->fg_colors);
+	assert(framebuffer->bg_colors);
+	assert(framebuffer->output_buffer.memory);
 }
 
 void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
@@ -134,7 +134,7 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 	buffer_appendf(&buffer, "\027[%d;%dH", cursor.x + 1, cursor.y + 1);
 	buffer_append_cstring(&buffer, "\x1b[?25h");		// show cursor
 
-	__efail_if(write(STDOUT_FILENO, buffer.memory, buffer.cursor) < 1);
+	assert_success(write(STDOUT_FILENO, buffer.memory, buffer.cursor));
 	// TODO: instead return error_because(errno);
 }
 

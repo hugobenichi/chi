@@ -114,8 +114,17 @@ static void err_stack_trace_example()
 		err_acknoledge(err);
 	}
 }
+#include <assert.h>
+
+void foo_bla() {
+	//__assert1(0 && " this is a test !! ");
+	//assert(0 && " this is a test !! ");
+	//assert((" this is a test !! ", 1));
+}
 
 int main(int argc, char **args) {
+	foo_bla();
+
 	log_init();
 	config_init();
 	term_init();
