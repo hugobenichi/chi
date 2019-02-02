@@ -116,15 +116,7 @@ static void err_stack_trace_example()
 }
 #include <assert.h>
 
-void foo_bla() {
-	//__assert1(0 && " this is a test !! ");
-	//assert(0 && " this is a test !! ");
-	//assert((" this is a test !! ", 1));
-}
-
 int main(int argc, char **args) {
-	foo_bla();
-
 	log_init();
 	config_init();
 	term_init();
@@ -147,6 +139,11 @@ int main(int argc, char **args) {
 			break;
 		}
 		editor_render(&editor, &framebuffer);
+
+
+		char buffer[256] = {};
+		framebuffer_print(buffer, 256, &framebuffer);
+		puts(buffer);
 		framebuffer_draw_to_term(&framebuffer, v(0,0));
 	}
 }

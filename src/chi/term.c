@@ -6,6 +6,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+#include <chi/config.h>
 #include <chi/base.h>
 
 static const char term_seq_finish[]                       = "\x1b[0m";
@@ -32,6 +33,9 @@ static const char term_restore_sequence[] =
 static void term_restore();
 void term_init()
 {
+
+if (CONFIG.debug_noterm) return;
+
 	assert_success(tcgetattr(STDIN_FILENO, &termios_initial));
 
 	struct termios termios_raw = termios_initial;
@@ -304,6 +308,22 @@ static inline struct input input_for_key(char code) {
 		.code = code,
 	};
 }
+
+// debugging functions
+void framebuffer_print(char* buffer, size_t size, struct framebuffer* framebuffer)
+{
+  snprintf(buffer, size, "framebuffer { .x=%d .y=%d .buffer_len=%lu .text=%p .fg_colors=%p .bg_colors=%p .buffer.memory=%p .buffer.cursor=%lu .buffer.size=%lu }",
+  framebuffer->window.x,
+  framebuffer->window.y,
+  framebuffer->buffer_len,
+  framebuffer->text,
+  framebuffer->fg_colors,
+  framebuffer->bg_colors,
+  framebuffer->output_buffer.memory,
+  framebuffer->output_buffer.cursor,
+  framebuffer->output_buffer.size);
+}
+
 
 static char input_buffer[3] = {};
 static char *pending_input_cursor = NULL;

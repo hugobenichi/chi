@@ -1,6 +1,13 @@
+#include <chi/config.h>
+
 #include <chi/base.h>
 #include <chi/memory.h>
 #include <chi/io.h>
+
+struct config CONFIG = {
+  .debug_noterm = 1,
+  .debug_config = 0,
+};
 
 static int is_space(u8 c) {
 	return c == ' ' || c == '\t';
@@ -48,11 +55,13 @@ void config_init()
 
 		char* k = slice_to_string(kv.key);
 		char* v = slice_to_string(kv.val);
+if (CONFIG.debug_config) {
 		if (slice_empty(kv.val)) {
 			printf("W: no val for key '%s'\n", k);
 		} else {
 			printf("key:%s val:%s\n", k, v);
 		}
+}
 
 		if (k) free(k);
 		if (v) free(v);

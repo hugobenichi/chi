@@ -25,6 +25,8 @@ void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
 
+// debugging functions
+void framebuffer_print(char* buffer, size_t size, struct framebuffer* framebuffer);
 
 // A framebuffer iterator allows to naviguate a subrectangle of a drawing framebuffer line by line, up or down.
 // All framebuffer iterator functions mutates the iterator passed by pointer.
