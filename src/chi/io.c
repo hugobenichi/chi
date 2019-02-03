@@ -1,4 +1,4 @@
-#include <chi/io.h>
+#include <chi.h>
 
 #include <assert.h>
 #include <errno.h>

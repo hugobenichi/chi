@@ -1,10 +1,6 @@
 #ifndef __chi_error__
 #define __chi_error__
 
-#include <execinfo.h>
-
-#include <chi/io.h>
-
 static int TRACE_BUFFER_MAX = 256;
 
 static inline void backtrace_print()

@@ -1,9 +1,6 @@
 #ifndef __chi_geometry_
 #define __chi_geometry_
 
-#include <stdint.h>
-#include <stdio.h>
-
 struct vec {
 	int32_t x;
 	int32_t y;

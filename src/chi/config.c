@@ -1,8 +1,4 @@
-#include <chi/config.h>
-
-#include <chi/base.h>
-#include <chi/memory.h>
-#include <chi/io.h>
+#include <chi.h>
 
 struct config CONFIG = {
   .debug_noterm = 1,

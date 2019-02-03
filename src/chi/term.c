@@ -1,13 +1,10 @@
-#include <chi/term.h>
+#include <chi.h>
 
 #include <assert.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-
-#include <chi/config.h>
-#include <chi/base.h>
 
 static const char term_seq_finish[]                       = "\x1b[0m";
 static const char term_newline[]                          = "\r\n";

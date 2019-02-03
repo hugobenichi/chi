@@ -1,4 +1,4 @@
-#include <chi/pool.h>
+#include <chi.h>
 
 #include <assert.h>
 #include <stdlib.h>

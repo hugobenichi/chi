@@ -1,6 +1,5 @@
-#include <chi/textbuffer.h>
+#include <chi.h>
 #include <errno.h>
-
 
 struct textbuffer_impl {
   struct textbuffer_impl *next_free_slot;

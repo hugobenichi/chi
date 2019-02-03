@@ -1,11 +1,9 @@
-#include <chi/log.h>
+#include <chi.h>
 
 #include <assert.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <unistd.h>
-
-#include <chi/base.h>
 
 // Default size of the log buffer for string assemlbing
 static const int LOG_BUFFER_SIZE = 256;

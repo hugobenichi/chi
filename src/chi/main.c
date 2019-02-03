@@ -1,9 +1,4 @@
-#include <chi/base.h>
-#include <chi/config.h>
-#include <chi/error.h>
-#include <chi/log.h>
-#include <chi/term.h>
-#include <chi/input.h>
+#include <chi.h>
 
 struct editor {};
 

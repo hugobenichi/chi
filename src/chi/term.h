@@ -1,10 +1,6 @@
 #ifndef __chi_term__
 #define __chi_term__
 
-#include <chi/geometry.h>
-#include <chi/memory.h>
-#include <chi/input.h> // TODO: fuse this other file back in there
-
 void term_init();
 vec term_get_size();
 struct input term_get_input();

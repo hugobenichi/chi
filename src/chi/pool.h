@@ -1,10 +1,6 @@
 #ifndef __chi_pool__
 #define __chi_pool__
 
-#include <chi/base.h>
-#include <chi/memory.h>
-
-
 // A pool of constant size items.
 // - cannot be resized and will not move objects inside.
 // - overhead of 24B + 4B per item.

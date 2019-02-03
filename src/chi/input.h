@@ -1,8 +1,6 @@
 #ifndef __chi_input__
 #define __chi_input__
 
-#include <chi/geometry.h>
-
 enum input_type {
   INPUT_RESIZE,
   INPUT_KEY,

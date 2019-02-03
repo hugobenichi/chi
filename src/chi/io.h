@@ -1,11 +1,6 @@
 #ifndef __chi_io__
 #define __chi_io__
 
-#include <chi/base.h>
-#include <chi/memory.h>
-
-#include <sys/stat.h>
-
 // DOCME
 struct mapped_file {
 	char name[256];

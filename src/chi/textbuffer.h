@@ -1,11 +1,6 @@
 #ifndef __chi_textbuffer__
 #define __chi_textbuffer__
 
-#include <chi/base.h>
-#include <chi/io.h>
-#include <chi/memory.h>
-#include <chi/geometry.h>
-
 void textbuffer_init();
 
 // A single line of text, made of a linked list of struct slices.

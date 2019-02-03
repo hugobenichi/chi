@@ -1,15 +1,6 @@
 #ifndef __chi_memory__
 #define __chi_memory__
 
-
-#include <unistd.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
-
-#include <chi/base.h>
-
-
 // TODO: write generic len, append, copy functions that works with different
 // combos of slice, memory and buffer.
 
