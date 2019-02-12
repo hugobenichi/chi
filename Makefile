@@ -20,9 +20,10 @@ OBJS3=\
   $(OUTDIR)/config.o \
   $(OUTDIR)/io.o \
   $(OUTDIR)/log.o \
+  $(OUTDIR)/mem.o \
+  $(OUTDIR)/pool.o \
   $(OUTDIR)/term.o \
-  $(OUTDIR)/textbuffer.o \
-  $(OUTDIR)/pool.o
+  $(OUTDIR)/textbuffer.o
 OBJECTS=$(OBJS3)
 TEST=$(patsubst x%,y%,xa   xb   xc)
 EXEC=chi
