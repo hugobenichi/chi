@@ -235,7 +235,7 @@ static char* rec_print(char *dst, size_t len, rec r)
 }
 
 
-
+/// module MEMORY ///
 
 // Delimits a memory segment
 struct memory {
@@ -563,8 +563,6 @@ size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size);
 
 /// module TEXTBUFFER ///
 
-void textbuffer_init();
-
 // A single line of text, made of a linked list of struct slices.
 // Lines are linked together in a doubly-linked lists for simple navigation and insertions.
 struct line {
@@ -572,23 +570,45 @@ struct line {
   struct line *next;
   struct textpiece {
     struct textpiece *next;
-    struct slice slice;
+    slice slice;
   } fragment;
   size_t bytelen;
 };
 
 // A cursor pointing into a single location into a single line of text.
-// It retains a link to its owning textbuffer.
+// The owner (struct view essentially) should always have cursor + textbuffer reference.
 struct cursor {
-  struct textbuffer *textbuffer;
   struct line *line;
-  // TODO: change to lineno and x_offset ?
-  vec position;
+  int lineno;
+  int x_offset;
 };
 
-
-// this is just an opaque handle
 struct textbuffer {
+  // path on disk of the file, 'path' is owned by the textbuffer, 'basename' just points into path.
+  char *path;
+  char *basename;
+
+  // append buffer for adding text, chained together in a linked list
+  struct append_buffer {
+    struct append_buffer *next;
+    buffer buffer;
+  } append_buffer_first;
+  struct append_buffer *append_buffer_current;
+
+  // lines
+  size_t line_number;
+  struct line *line_first;
+  struct line *line_last;
+
+  // cursors
+  struct cursor_list {
+    struct cursor_list *next;
+    struct cursor cursor;
+  } cursor_list;
+
+  // TODO: selections
+
+  // TODO: command history, should it be tracked by cursor
 };
 
 
@@ -608,7 +628,26 @@ struct textbuffer_command {
   void* args;
 };
 
+
+void textbuffer_init();
 struct err textbuffer_operation(struct textbuffer textbuffer, struct textbuffer_command *command);
 
+
+
+/// module VIEWS ///
+
+
+// A view that has references to a textbuffer and a cursor into that textbuffer.
+// Also track various viewing parameters.
+// TODO: how/where to track invalidated cursors and textbuffers.
+struct view {
+  struct textbuffer *textbuffer;
+  struct cursor *cursor;
+  int y_offset;
+  u8 are_line_wrapping;
+  u8 are_lineno_absolute;
+  // hightlining mode ...
+  // tab display ...
+};
 
 #endif
