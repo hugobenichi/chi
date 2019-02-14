@@ -72,7 +72,7 @@ struct slice slice_take(struct slice s, size_t n)
   return s;
 }
 
-struct slice slice_strip(struct slice s, u8 c)
+struct slice slice_strip(struct slice s, char c)
 {
   while (slice_len(s) && *(s.stop - 1) == c) {
     s.stop--;
@@ -83,7 +83,7 @@ struct slice slice_strip(struct slice s, u8 c)
 struct slice slice_split(struct slice *s, int c)
 {
   struct slice left = *s;
-  u8* pivot = (u8*) memchr(left.start, c, slice_len(left));
+  char *pivot = (char *) memchr(left.start, c, slice_len(left));
   if (!pivot) {
     pivot = s->stop;
   }
@@ -103,9 +103,9 @@ struct slice slice_take_line(struct slice *s)
   return line;
 }
 
-struct slice slice_while(struct slice *s, int fn(u8))
+struct slice slice_while(struct slice *s, int fn(char))
 {
-  u8* u = s->start;
+  char *u = s->start;
   while (u < s->stop && fn(*u)) {
     u++;
   }
@@ -121,7 +121,7 @@ struct slice buffer_to_slice(struct buffer b)
 	return s(b.memory, b.memory + b.size);
 }
 
-struct slice slice_copy_bytes(struct slice dst, const char* src, size_t srclen)
+struct slice slice_copy_bytes(struct slice dst, const char *src, size_t srclen)
 {
 	size_t dstlen = slice_len(dst);
 	size_t len = min(dstlen, srclen);
@@ -152,14 +152,14 @@ void buffer_ensure_capacity(struct buffer *buffer, size_t additional_capacity)
   buffer_ensure_size(buffer, buffer->cursor + additional_capacity);
 }
 
-void buffer_append(struct buffer *dst, const char* src, size_t srclen)
+void buffer_append(struct buffer *dst, const char *src, size_t srclen)
 {
   buffer_ensure_capacity(dst, srclen);
 	memcpy(buffer_end(*dst), src, srclen);
 }
 
 
-void buffer_appendf_proto(struct buffer *dst, const char* format, int numargs, ...)
+void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, ...)
 {
   va_list args;
   va_start(args, numargs);

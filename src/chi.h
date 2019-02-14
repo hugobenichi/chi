@@ -24,7 +24,6 @@ typedef uint8_t   u8;
 typedef uint16_t  u16;
 typedef uint32_t  u32;
 typedef uint64_t  u64;
-typedef char      c8;
 
 
 #define Kilo(x) (1024L * (x))
@@ -247,10 +246,9 @@ typedef struct memory memory;
 #define slice_wrap_string(string) s(string, string + sizeof(string) - 1)
 
 // Slice: a pair of pointers that delimits a memory segment. Mostly used as a value.
-// TODO: change u8 to c8
 struct slice {
-	u8 *start;
-	u8 *stop;
+	char *start;
+	char *stop;
 };
 typedef struct slice slice;
 // TODO: regroup s and s2 together with Generic
@@ -265,10 +263,10 @@ size_t slice_copy(struct slice dst, const struct slice src);
 // TODO: rework the interface: this just cut a slice at n and both drop/take should be the same thing.
 struct slice slice_drop(struct slice s, size_t n);
 struct slice slice_take(struct slice s, size_t n);
-struct slice slice_strip(struct slice s, u8 c);
+struct slice slice_strip(struct slice s, char c);
 struct slice slice_split(struct slice *s, int c);
 struct slice slice_take_line(struct slice *s);
-struct slice slice_while(struct slice *s, int fn(u8));
+struct slice slice_while(struct slice *s, int fn(char));
 struct slice slice_copy_bytes(struct slice dst, const char* src, size_t srclen);
 #define slice_copy_string(dst, string) slice_copy_bytes(dst, string, sizeof(string) - 1)
 #define slice_around_value(v) s2(&v, sizeof(v))
@@ -516,7 +514,7 @@ struct input term_get_input();
 struct framebuffer {
   vec window;                     // size of the display
   size_t buffer_len;              // size of the various buffers.
-  c8 *text;                       // 2D buffer for storing text.
+  char *text;                     // 2D buffer for storing text.
   int *fg_colors;                 // 2d buffer for storing foreground colors,
   int *bg_colors;                 // 2d buffer for storing foreground colors,
   struct buffer output_buffer;    // append buffer for storing all control sequences and output text to the terminal for one frame.
@@ -538,7 +536,7 @@ void framebuffer_print(char* buffer, size_t size, struct framebuffer* framebuffe
 // Initially the iterator is set one step before the first line, it is necessary to 
 
 struct framebuffer_iter {
-  c8 *text;
+  char *text;
   int *fg;
   int *bg;
   size_t stride;
@@ -556,7 +554,7 @@ void framebuffer_iter_reset_last(struct framebuffer_iter *iter);
 int framebuffer_iter_next(struct framebuffer_iter *iter);
 int framebuffer_iter_prev(struct framebuffer_iter *iter);
 // These three functions return the number of slots into which bytes/colors were pushed.
-size_t framebuffer_push_text(struct framebuffer_iter *iter, c8 *text, size_t size);
+size_t framebuffer_push_text(struct framebuffer_iter *iter, char *text, size_t size);
 size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size);
 size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size);
 

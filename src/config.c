@@ -5,11 +5,11 @@ struct config CONFIG = {
   .debug_config = 0,
 };
 
-static int is_space(u8 c) {
+static int is_space(char c) {
 	return c == ' ' || c == '\t';
 }
 
-static int is_not_space(u8 c) {
+static int is_not_space(char c) {
 	return !is_space(c);
 }
 

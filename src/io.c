@@ -40,7 +40,7 @@ int mapped_file_load(struct mapped_file *f, const char *path)
 	int offset = 0;
 	size_t len = f->file_stat.st_size;
 
-	f->data.start = (u8*) mmap(NULL, len, prot, flags, fd, offset);
+	f->data.start = mmap(NULL, len, prot, flags, fd, offset);
 	f->data.stop  = f->data.start + len;
 	assert(f->data.start != MAP_FAILED);
 

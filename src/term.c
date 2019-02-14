@@ -106,13 +106,13 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 	buffer_append_cstring(&buffer, "\x1b[H");		// go home, i.e top left
 
 	vec window = framebuffer->window;
-	c8* text = framebuffer->text;
-	c8* text_end = text + window.x * window.y;
+	char *text = framebuffer->text;
+	char *text_end = text + window.x * window.y;
 	int *fg = framebuffer->fg_colors;
 	int *bg = framebuffer->bg_colors;
 	int x = 0;
 	while (text < text_end) {
-		c8* section_start = text;
+		char *section_start = text;
 		int current_fg = *fg;
 		int current_bg = *bg;
 		buffer_append_cstring(&buffer, term_color_string(current_fg, current_bg));
@@ -159,7 +159,7 @@ void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
 	// TODO: put this into a config file ?
 	static const int default_color_fg = 1;
 	static const int default_color_bg = 0;
-	static const c8 default_text = ' ';
+	static const char default_text = ' ';
 
 	struct framebuffer_iter iter = framebuffer_iter_make(framebuffer, rec);
 	while (framebuffer_iter_next(&iter)) {
@@ -252,7 +252,7 @@ int framebuffer_iter_prev(struct framebuffer_iter* iter)
 	return done;
 }
 
-size_t framebuffer_push_text(struct framebuffer_iter *iter, c8 *text, size_t size)
+size_t framebuffer_push_text(struct framebuffer_iter *iter, char *text, size_t size)
 {
 	size = min(size, iter->line_length);
 	memcpy(iter->text, text, size);
