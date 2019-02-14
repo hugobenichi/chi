@@ -251,28 +251,26 @@ struct slice {
 	char *stop;
 };
 typedef struct slice slice;
-// TODO: regroup s and s2 together with Generic
-struct slice s(void *start, void *stop);
-struct slice s2(void *memory, size_t len);
-size_t slice_len(struct slice s);
-char* slice_to_string(struct slice s);
-size_t slice_empty(struct slice s);
-int slice_write(struct slice s, int fd);
-int slice_read(struct slice s, int fd);
-size_t slice_copy(struct slice dst, const struct slice src);
+slice s(void *start, void *stop);
+size_t slice_len(slice s);
+char* slice_to_string(slice s);
+size_t slice_empty(slice s);
+int slice_write(slice s, int fd);
+int slice_read(slice s, int fd);
+size_t slice_copy(slice dst, const slice src);
 // TODO: rework the interface: this just cut a slice at n and both drop/take should be the same thing.
-struct slice slice_drop(struct slice s, size_t n);
-struct slice slice_take(struct slice s, size_t n);
-struct slice slice_strip(struct slice s, char c);
-struct slice slice_split(struct slice *s, int c);
-struct slice slice_take_line(struct slice *s);
-struct slice slice_while(struct slice *s, int fn(char));
-struct slice slice_copy_bytes(struct slice dst, const char *src, size_t srclen);
+slice slice_drop(slice s, size_t n);
+slice slice_take(slice s, size_t n);
+slice slice_strip(slice s, char c);
+slice slice_split(slice *s, int c);
+slice slice_take_line(slice *s);
+slice slice_while(slice *s, int fn(char));
+slice slice_copy_bytes(slice dst, const char *src, size_t srclen);
+#define slice_of_value(v) s(&v, sizeof(v))
+#define slice_of_ref(p) s(p, sizeof(*p))
 #define slice_copy_string(dst, string) slice_copy_bytes(dst, string, sizeof(string) - 1)
-#define slice_around_value(v) s2(&v, sizeof(v))
-#define slice_copy_value(dst, v) slice_copy(dst, slize_around_value(v))
-#define slice_around_ref(p) s2(p, sizeof(*p))
-#define slice_copy_ref(dst, p) slice_copy(dst, slize_around_ref(p))
+#define slice_copy_value(dst, v) slice_copy(dst, slice_of_value(v))
+#define slice_copy_ref(dst, p) slice_copy(dst, slice_of_ref(p))
 
 // Buffer: a chunk of memory with a known size and an internal cursor. Used mostly as a reference.
 struct buffer {
@@ -281,6 +279,7 @@ struct buffer {
 	size_t size;
 };
 typedef struct buffer buffer;
+buffer b(void* memory, size_t len);
 size_t buffer_capacity(struct buffer dst);
 char* buffer_end(struct buffer dst);
 void buffer_ensure_size(struct buffer *buffer, size_t size);
@@ -290,20 +289,22 @@ void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, .
 #define buffer_append_cstring(dst, string)  buffer_append(dst, string, strlen(string))
 #define buffer_appendf(dst, format, ...) buffer_appendf_proto(dst, format, NUMARGS(__VA_ARGS__), __VA_ARGS__)
 
-// Buffer <-> Slice conversion
-struct slice buffer_to_slice(struct buffer b);
-// TODO: buffer_to_slice with left/right offsets
 
 
 // TODO: write generic len, append, copy functions that works with different
 // combos of slice, memory and buffer.
-//#define mylen(a) _Generic((a), struct slice: ((size_t)((a).stop	- (a).start)))
 #define mylen(a) _Generic((a),          \
 	struct slice:   ((size_t)((a).stop	- (a).start)),  \
 	struct memory:	(a).size,   \
 	struct buffer:	(a).cursor)
 
-// TODO: generic copy function
+slice buffer_to_slice(struct buffer b);
+slice buffer_to_slice_full(struct buffer b);
+buffer buffer_from_slice(slice s);
+// TODO: add generic copy function
+size_t copy_slice_slice(slice dst, slice src);
+size_t copy_slice_buffer(slice dst, buffer src);
+size_t copy_slice_buffer_full(slice dst, buffer src);
 
 
 // Pool: A fixed memory chunk devided in a set of constant size items.
