@@ -19,13 +19,13 @@ size_t slice_len(slice s)
 
 char* slice_to_string(slice s)
 {
-  size_t l = slice_len(s);
-  char *string = malloc(l + 1);
-  if (string) {
-    memcpy(string, s.start, l);
-    *(string + l) = 0;
-  }
-  return string;
+	size_t l = slice_len(s);
+	char *string = malloc(l + 1);
+	if (string) {
+		memcpy(string, s.start, l);
+		*(string + l) = 0;
+	}
+	return string;
 }
 
 size_t slice_empty(slice s)
@@ -35,12 +35,12 @@ size_t slice_empty(slice s)
 
 int slice_write(slice s, int fd)
 {
-  return write(fd, s.start, slice_len(s));
+	return write(fd, s.start, slice_len(s));
 }
 
 int slice_read(slice s, int fd)
 {
-  return read(fd, s.start, slice_len(s));
+	return read(fd, s.start, slice_len(s));
 }
 
 size_t slice_copy(slice dst, const slice src)
@@ -52,59 +52,59 @@ size_t slice_copy(slice dst, const slice src)
 
 slice slice_drop(slice s, size_t n)
 {
-  n = min(n, slice_len(s));
-  s.start = s.start - n;
-  return s;
+	n = min(n, slice_len(s));
+	s.start = s.start - n;
+	return s;
 }
 
 slice slice_take(slice s, size_t n)
 {
-  n = min(n, slice_len(s));
-  s.stop = s.stop - n;
-  return s;
+	n = min(n, slice_len(s));
+	s.stop = s.stop - n;
+	return s;
 }
 
 slice slice_strip(slice s, char c)
 {
-  while (slice_len(s) && *(s.stop - 1) == c) {
-    s.stop--;
-  }
-  return s;
+	while (slice_len(s) && *(s.stop - 1) == c) {
+		s.stop--;
+	}
+	return s;
 }
 
 slice slice_split(slice *s, int c)
 {
-  slice left = *s;
-  char *pivot = (char *) memchr(left.start, c, slice_len(left));
-  if (!pivot) {
-    pivot = s->stop;
-  }
+	slice left = *s;
+	char *pivot = (char *) memchr(left.start, c, slice_len(left));
+	if (!pivot) {
+		pivot = s->stop;
+	}
 
-  left.stop = pivot;
-  s->start = pivot;
+	left.stop = pivot;
+	s->start = pivot;
 
-  return left;
+	return left;
 }
 
 slice slice_take_line(slice *s)
 {
-  slice line = slice_split(s, '\n');
-  if (*s->start == '\n') {
-    s->start++;
-  }
-  return line;
+	slice line = slice_split(s, '\n');
+	if (*s->start == '\n') {
+		s->start++;
+	}
+	return line;
 }
 
 slice slice_while(slice *s, int fn(char))
 {
-  char *u = s->start;
-  while (u < s->stop && fn(*u)) {
-    u++;
-  }
-  slice left = *s;
-  left.stop = u;
-  s->start = u;
-  return left;
+	char *u = s->start;
+	while (u < s->stop && fn(*u)) {
+		u++;
+	}
+	slice left = *s;
+	left.stop = u;
+	s->start = u;
+	return left;
 }
 
 buffer b(void* memory, size_t len)
@@ -126,51 +126,51 @@ slice slice_copy_bytes(slice dst, const char *src, size_t srclen)
 
 size_t buffer_capacity(struct buffer dst)
 {
-  return dst.size - dst.cursor;
+	return dst.size - dst.cursor;
 }
 
 char* buffer_end(struct buffer dst)
 {
-  return dst.memory + dst.cursor;
+	return dst.memory + dst.cursor;
 }
 
 void buffer_ensure_size(struct buffer *buffer, size_t size)
 {
-  if (size <= buffer->size) {
-    return;
-  }
-  buffer->memory = realloc(buffer->memory, size);
+	if (size <= buffer->size) {
+		return;
+	}
+	buffer->memory = realloc(buffer->memory, size);
 }
 
 void buffer_ensure_capacity(struct buffer *buffer, size_t additional_capacity)
 {
-  buffer_ensure_size(buffer, buffer->cursor + additional_capacity);
+	buffer_ensure_size(buffer, buffer->cursor + additional_capacity);
 }
 
 void buffer_append(struct buffer *dst, const char *src, size_t srclen)
 {
-  buffer_ensure_capacity(dst, srclen);
+	buffer_ensure_capacity(dst, srclen);
 	memcpy(buffer_end(*dst), src, srclen);
 }
 
 
 void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, ...)
 {
-  va_list args;
-  va_start(args, numargs);
+	va_list args;
+	va_start(args, numargs);
 
-  for (;;) {
-    size_t capacity = buffer_capacity(*dst);
-    size_t n = vsnprintf(buffer_end(*dst), capacity, format, args);
-    if (capacity < n) {
-        buffer_ensure_capacity(dst, n);
-        continue;
-    }
-    dst->cursor += n;
-    break;
-  }
+	for (;;) {
+		size_t capacity = buffer_capacity(*dst);
+		size_t n = vsnprintf(buffer_end(*dst), capacity, format, args);
+		if (capacity < n) {
+			buffer_ensure_capacity(dst, n);
+			continue;
+		}
+		dst->cursor += n;
+		break;
+	}
 
-  va_end(args);
+	va_end(args);
 }
 
 slice buffer_to_slice(struct buffer b)
