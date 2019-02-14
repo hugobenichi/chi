@@ -31,7 +31,7 @@ struct pool* pool_init(size_t object_size, int capacity)
 	return pool;
 }
 
-int pool_get_index(struct pool *pool, void* object)
+int pool_get_index(struct pool *pool, void *object)
 {
 	u8 *base= (u8*) (pool->free_object_map + pool->capacity);
 	u8 *obj = object;
@@ -66,7 +66,7 @@ void* pool_new_object(struct pool *pool)
 	return pool_get_object(pool, next);
 }
 
-void pool_return_object(struct pool *pool, void* object)
+void pool_return_object(struct pool *pool, void *object)
 {
 	int old_last = pool->last_free_object;
 	int new_last = pool_get_index(pool, object);
@@ -74,7 +74,7 @@ void pool_return_object(struct pool *pool, void* object)
 	pool->used--;
 	pool->last_free_object = new_last;
 
-	int* free_object_map = pool->free_object_map;
+	int *free_object_map = pool->free_object_map;
 	assert(free_object_map[old_last] = old_last);
 	assert(free_object_map[new_last] = -1);
 	free_object_map[old_last] = new_last;

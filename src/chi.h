@@ -46,7 +46,7 @@ typedef uint64_t  u64;
 
 
 // Print formatted error msg and exit.
-static inline void fatal(const char * format, ...)
+static inline void fatal(const char *format, ...)
 {
         va_list args;
         va_start(args, format);
@@ -253,7 +253,7 @@ struct slice {
 typedef struct slice slice;
 // TODO: regroup s and s2 together with Generic
 struct slice s(void *start, void *stop);
-struct slice s2(void* memory, size_t len);
+struct slice s2(void *memory, size_t len);
 size_t slice_len(struct slice s);
 char* slice_to_string(struct slice s);
 size_t slice_empty(struct slice s);
@@ -267,7 +267,7 @@ struct slice slice_strip(struct slice s, char c);
 struct slice slice_split(struct slice *s, int c);
 struct slice slice_take_line(struct slice *s);
 struct slice slice_while(struct slice *s, int fn(char));
-struct slice slice_copy_bytes(struct slice dst, const char* src, size_t srclen);
+struct slice slice_copy_bytes(struct slice dst, const char *src, size_t srclen);
 #define slice_copy_string(dst, string) slice_copy_bytes(dst, string, sizeof(string) - 1)
 #define slice_around_value(v) s2(&v, sizeof(v))
 #define slice_copy_value(dst, v) slice_copy(dst, slize_around_value(v))
@@ -285,8 +285,8 @@ size_t buffer_capacity(struct buffer dst);
 char* buffer_end(struct buffer dst);
 void buffer_ensure_size(struct buffer *buffer, size_t size);
 void buffer_ensure_capacity(struct buffer *buffer, size_t additional_capacity);
-void buffer_append(struct buffer *dst, const char* src, size_t srclen);
-void buffer_appendf_proto(struct buffer *dst, const char* format, int numargs, ...);
+void buffer_append(struct buffer *dst, const char *src, size_t srclen);
+void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, ...);
 #define buffer_append_cstring(dst, string)  buffer_append(dst, string, strlen(string))
 #define buffer_appendf(dst, format, ...) buffer_appendf_proto(dst, format, NUMARGS(__VA_ARGS__), __VA_ARGS__)
 
@@ -319,10 +319,10 @@ struct pool {
   int free_object_map[0];
 };
 struct pool* pool_init(size_t object_size, int capacity);
-int pool_get_index(struct pool *pool, void* object);
+int pool_get_index(struct pool *pool, void *object);
 void* pool_get_object(struct pool *pool, int object_indext);
 void* pool_new_object(struct pool *pool);
-void pool_return_object(struct pool *pool, void* object);
+void pool_return_object(struct pool *pool, void *object);
 #define pool_is_full(pool) (pool->used == pool->capacity)
 
 
@@ -345,7 +345,7 @@ static int TRACE_BUFFER_MAX = 256;
 
 static inline void backtrace_print()
 {
-  void* trace_buffer[TRACE_BUFFER_MAX];
+  void *trace_buffer[TRACE_BUFFER_MAX];
   int depth = backtrace(trace_buffer, TRACE_BUFFER_MAX);
 
   char **trace_symbols = backtrace_symbols(trace_buffer, depth);
@@ -527,7 +527,7 @@ void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
 
 // debugging functions
-void framebuffer_print(char* buffer, size_t size, struct framebuffer* framebuffer);
+void framebuffer_print(char *buffer, size_t size, struct framebuffer *framebuffer);
 
 // A framebuffer iterator allows to naviguate a subrectangle of a drawing framebuffer line by line, up or down.
 // All framebuffer iterator functions mutates the iterator passed by pointer.
@@ -623,7 +623,7 @@ enum textbuffer_op {
 struct textbuffer_command {
   int op;
   int arg_size;
-  void* args;
+  void *args;
 };
 
 

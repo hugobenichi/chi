@@ -12,7 +12,7 @@ struct slice s(void *start, void *stop)
 	};
 }
 
-struct slice s2(void* memory, size_t len)
+struct slice s2(void *memory, size_t len)
 {
 	return (struct slice) {
 		.start = memory,
@@ -28,7 +28,7 @@ size_t slice_len(struct slice s)
 char* slice_to_string(struct slice s)
 {
   size_t l = slice_len(s);
-  char* string = malloc(l + 1);
+  char *string = malloc(l + 1);
   if (string) {
     memcpy(string, s.start, l);
     *(string + l) = 0;

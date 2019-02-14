@@ -36,7 +36,7 @@ static void all_textbuffers_close_free_list()
 	all_textbuffers_freelist_last->next_free_slot = all_textbuffers_freelist_last;
 }
 
-static inline struct textbuffer_impl* all_textbuffers_find_first_free_slot(struct textbuffer_impl* textbuffer)
+static inline struct textbuffer_impl* all_textbuffers_find_first_free_slot(struct textbuffer_impl *textbuffer)
 {
 	if (textbuffer) {
 		while (textbuffer->next_free_slot) {
@@ -97,7 +97,7 @@ static struct textbuffer_impl* all_textbuffer_alloc()
 
 }
 
-static void all_textbuffers_free(struct textbuffer_impl* textbuffer)
+static void all_textbuffers_free(struct textbuffer_impl *textbuffer)
 {
 	all_textbuffers_length++;
 	all_textbuffers_freelist_last->next_free_slot = textbuffer;

@@ -49,8 +49,8 @@ void config_init()
 			continue;
 		}
 
-		char* k = slice_to_string(kv.key);
-		char* v = slice_to_string(kv.val);
+		char *k = slice_to_string(kv.key);
+		char *v = slice_to_string(kv.val);
 if (CONFIG.debug_config) {
 		if (slice_empty(kv.val)) {
 			printf("W: no val for key '%s'\n", k);

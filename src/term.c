@@ -70,13 +70,13 @@ static void term_restore()
 	assert_success(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)));
 }
 
-static const char* term_color_string(int fg, int bg)
+static const char *term_color_string(int fg, int bg)
 {
 	// TODO: decide on color encoding
 	return "";
 }
 
-void framebuffer_init(struct framebuffer* framebuffer, vec term_size)
+void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 {
 	assert(framebuffer);
 
@@ -169,7 +169,7 @@ void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
 	}
 }
 
-void fill_color_rec(int* color_array, vec window, int color, rec rec)
+void fill_color_rec(int *color_array, vec window, int color, rec rec)
 {
 	clamp_rec(&rec, window);
 	for (int y = rec.y0; y < rec.y1; y++) {
@@ -224,7 +224,7 @@ void framebuffer_iter_reset_last(struct framebuffer_iter *iter)
 	iter->line_current = iter->line_max;
 }
 
-int framebuffer_iter_next(struct framebuffer_iter* iter)
+int framebuffer_iter_next(struct framebuffer_iter *iter)
 {
 	assert(-1 <= iter->line_current);
 	assert(iter->line_current <= iter->line_max);
@@ -238,7 +238,7 @@ int framebuffer_iter_next(struct framebuffer_iter* iter)
 	return done;
 }
 
-int framebuffer_iter_prev(struct framebuffer_iter* iter)
+int framebuffer_iter_prev(struct framebuffer_iter *iter)
 {
 	assert(-1 <= iter->line_current);
 	assert(iter->line_current <= iter->line_max);
@@ -307,7 +307,7 @@ static inline struct input input_for_key(char code) {
 }
 
 // debugging functions
-void framebuffer_print(char* buffer, size_t size, struct framebuffer* framebuffer)
+void framebuffer_print(char *buffer, size_t size, struct framebuffer *framebuffer)
 {
   snprintf(buffer, size, "framebuffer { .x=%d .y=%d .buffer_len=%lu .text=%p .fg_colors=%p .bg_colors=%p .buffer.memory=%p .buffer.cursor=%lu .buffer.size=%lu }",
   framebuffer->window.x,
