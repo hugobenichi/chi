@@ -1,5 +1,49 @@
 #include <chi.h>
+
+#include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+#define textchunk_size (0x8000 + sizeof(struct textchunk)) // 32k text chunk
+
+struct textchunk {
+	struct textchunk *next;
+	size_t cursor;
+	char text[0];
+};
+
+static struct textchunk *textchunk_free_list_head = NULL;
+static int textchunk_total_count = 0;
+static int textchunk_free_count = 0;
+
+struct textchunk* textchunk_alloc()
+{
+	if_null(textchunk_free_list_head) {
+		textchunk_total_count++;
+		textchunk_free_count++;
+		textchunk_free_list_head = malloc(textchunk_size);
+	}
+	textchunk_free_count--;
+	struct textchunk *chunk = textchunk_free_list_head;
+	textchunk_free_list_head = chunk->next;
+	chunk->cursor = 0;
+	chunk->next = NULL;
+	return chunk;
+}
+
+void textchunk_free(struct textchunk *chunk)
+{
+	assert(chunk);
+	struct textchunk dummy = { .next = chunk };
+	struct textchunk *end = &dummy;
+	while (end->next) {
+		textchunk_free_count++;
+		end = end->next;
+	}
+	end->next = textchunk_free_list_head;
+	textchunk_free_list_head = chunk;
+}
 
 struct textbuffer_impl {
   struct textbuffer_impl *next_free_slot;
@@ -151,4 +195,66 @@ void textbuffer_init()
 	// TODOs:
 	// setup memory for storing all textbuffer
 	// setup memory for storing an index of textbuffer by name
+}
+
+static size_t file_path_maxlen = 1024;
+
+int textbuffer_load(const char *path, struct textbuffer *textbuffer)
+{
+	assert(path);
+	size_t len = strnlen_polyfill(path, file_path_maxlen);
+	char* path_copy = malloc(len + 1);
+	memcpy(path_copy, path, len + 1);
+
+	// FIXME: need to close FD !
+	int fd = open(path_copy, O_RDONLY);
+	if (!fd) {
+		return -errno;
+	}
+	struct stat stat;
+	int r = fstat(fd, &stat);
+	if (r < 0) {
+		return -errno;
+	}
+
+	textbuffer->path = path_copy;
+	textbuffer->basename = path_copy;
+	char* last_slash = path_copy;
+	while (last_slash) {
+		textbuffer->basename = last_slash;
+		last_slash = strchr(last_slash, '/');
+	}
+	textbuffer->basename++;
+
+	// Load file in chunk
+	ssize_t filesize = stat.st_size;
+	struct textchunk **chunk_emplace = &textbuffer->textchunk_head;
+	while (0 < filesize) {
+		struct textchunk *chunk = textchunk_alloc();
+		*chunk_emplace = chunk;
+		chunk_emplace = &chunk->next;
+		textbuffer->textchunk_last = chunk;
+		if (!chunk) {
+			return -ENOMEM;
+		}
+
+		ssize_t r = read(fd, chunk->text, textchunk_size);
+		if (r < 0) {
+			return -errno;
+		}
+		if (r == 0) {
+			assert(filesize == 0);
+			// Broken invariant: r should always be <= filesize, and filesize always > 0
+			return -EINVAL;
+		}
+		chunk->cursor += r;
+		filesize -= r;
+		assert((r == textchunk_size) || (filesize == 0));
+	}
+
+	// TODO: cut the file into lines
+
+	// TODO: init one cursor
+
+	return 0;
 }

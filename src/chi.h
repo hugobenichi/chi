@@ -25,6 +25,7 @@ typedef uint16_t  u16;
 typedef uint32_t  u32;
 typedef uint64_t  u64;
 
+#define if_null(ptr) if ((ptr) == NULL)
 
 #define Kilo(x) (1024L * (x))
 #define Mega(x) (1024L * Kilo(x))
@@ -44,6 +45,18 @@ typedef uint64_t  u64;
 // Find statically the size of a __VA_ARGS__ list passed to a macro.
 #define NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
 
+#ifdef strnlen
+#define strnlen_polyfill strnlen
+#else
+static size_t strnlen_polyfill(const char *str, size_t maxlen)
+{
+  size_t i = 0;
+  while (i < maxlen && str[i]) {
+    i++;
+  }
+  return i;
+}
+#endif
 
 // Print formatted error msg and exit.
 static inline void fatal(const char *format, ...)
@@ -55,6 +68,7 @@ static inline void fatal(const char *format, ...)
         fprintf(stderr, "\n");
         exit(1);
 }
+
 
 // More asserts
 // TODO: replace strerror with a mapping of errno values to errno symbols like ENOPERM.
@@ -288,7 +302,7 @@ void buffer_append(struct buffer *dst, const char *src, size_t srclen);
 void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, ...);
 #define buffer_append_cstring(dst, string)  buffer_append(dst, string, strlen(string))
 #define buffer_appendf(dst, format, ...) buffer_appendf_proto(dst, format, NUMARGS(__VA_ARGS__), __VA_ARGS__)
-
+ssize_t buffer_read(buffer *dst, int fd,  size_t size);
 
 
 // TODO: write generic len, append, copy functions that works with different
@@ -329,6 +343,7 @@ void pool_return_object(struct pool *pool, void *object);
 
 /// module IO ///
 
+// TODO: kill ??
 // DOCME
 struct mapped_file {
 	char name[256];
@@ -582,17 +597,16 @@ struct cursor {
   int x_offset;
 };
 
+struct textchunk;
+
 struct textbuffer {
   // path on disk of the file, 'path' is owned by the textbuffer, 'basename' just points into path.
   char *path;
   char *basename;
 
-  // append buffer for adding text, chained together in a linked list
-  struct append_buffer {
-    struct append_buffer *next;
-    buffer buffer;
-  } append_buffer_first;
-  struct append_buffer *append_buffer_current;
+  // linked list of buffers for adding text
+  struct textchunk *textchunk_head;
+  struct textchunk *textchunk_last;
 
   // lines
   size_t line_number;
@@ -609,6 +623,8 @@ struct textbuffer {
 
   // TODO: command history, should it be tracked by cursor
 };
+
+int textbuffer_load(const char *path, struct textbuffer *textbuffer);
 
 
 // TODO: define all ops

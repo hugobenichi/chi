@@ -173,6 +173,15 @@ void buffer_appendf_proto(struct buffer *dst, const char *format, int numargs, .
 	va_end(args);
 }
 
+ssize_t buffer_read(buffer *dst, int fd,  size_t size)
+{
+	ssize_t r = read(fd, dst->memory + dst->cursor, min(size, buffer_capacity(*dst)));
+	if (r > 0) {
+		dst->cursor += r;
+	}
+	return r;
+}
+
 slice buffer_to_slice(struct buffer b)
 {
 	return s(b.memory, b.memory + b.cursor);

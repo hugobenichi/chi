@@ -10,15 +10,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-static size_t strnlen_polyfill(const char *str, size_t maxlen)
-{
-  size_t i = 0;
-  while (i < maxlen && str[i]) {
-    i++;
-  }
-  return i;
-}
-
 int mapped_file_load(struct mapped_file *f, const char *path)
 {
 	// TODO: return error if path is too long
