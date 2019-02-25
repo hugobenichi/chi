@@ -28,9 +28,9 @@ char* slice_to_string(slice s)
 	return string;
 }
 
-size_t slice_empty(slice s)
+int slice_empty(slice s)
 {
-	return s.stop == s.start;
+	return s.stop <= s.start;
 }
 
 int slice_write(slice s, int fd)
@@ -72,6 +72,10 @@ slice slice_strip(slice s, char c)
 	return s;
 }
 
+// Split the given slice into two at the first occurence of 'c'.
+// The left side is returned as a value, the given slice is mutated to match the right side.
+// The pivot is included in the right.
+// However, if 'c' is not found in the slice, everything is taken and the right side becomes empty.
 slice slice_split(slice *s, int c)
 {
 	slice left = *s;

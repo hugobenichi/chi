@@ -5,13 +5,17 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-#define textchunk_size (0x8000 + sizeof(struct textchunk)) // 32k text chunk
+#define textchunk_datasize 0x8000 // 32k
+#define textchunk_size (textchunk_datasize + sizeof(struct textchunk))
 
 struct textchunk {
 	struct textchunk *next;
 	size_t cursor;
 	char text[0];
 };
+
+#define textchunk_begin(chunk)	(&((chunk)->text))
+#define textchunk_end(chunk)	(&((chunk)->text + min((chunk)->cursor, textchunk_datasize))
 
 static struct textchunk *textchunk_free_list_head = NULL;
 static int textchunk_total_count = 0;
@@ -197,6 +201,58 @@ void textbuffer_init()
 	// setup memory for storing an index of textbuffer by name
 }
 
+static struct line* line_alloc_empty()
+{
+	return calloc(sizeof(struct line), 1); // calloc because it needs to be zeroed
+}
+
+// Link two lines together. Can handle nulls
+static void line_link(struct line *line_first, struct line *line_second)
+{
+	if (line_first) line_first->next = line_second;
+	if (line_second) line_second->prev = line_first;
+}
+
+// Insert given line before the current cursor
+static void line_insert_pre(struct cursor *cursor, struct line *line)
+{
+	struct line *l1 = cursor->line->prev;
+	struct line *l2 = line;
+	struct line *l3 = cursor->line;
+	line_link(l1, l2);
+	line_link(l2, l3);
+
+	// !!! this need to adjust the lineno of all cursors before
+}
+
+// Insert given line after the current cursor
+static void line_insert_post(struct cursor *cursor, struct line *line)
+{
+	struct line *l1 = cursor->line;
+	struct line *l2 = line;
+	struct line *l3 = cursor->line->next;
+	line_link(l1, l2);
+	line_link(l2, l3);
+
+	// !!! this need to adjust the lineno of all cursors after
+}
+
+static void line_append_fragment(struct line *line, slice fragment)
+{
+	if (slice_empty(fragment)) {
+		return;
+	}
+	struct textpiece **last_fragment = &line->fragment;
+	while (*last_fragment) {
+		*last_fragment = (*last_fragment)->next;
+	}
+	*last_fragment = calloc(sizeof(struct textpiece), 1);
+// TODO: this should return ENOMEM in case it fails
+	assert(*last_fragment);
+	(*last_fragment)->slice = fragment;
+	line->bytelen += slice_len(fragment);
+}
+
 static size_t file_path_maxlen = 1024;
 
 int textbuffer_load(const char *path, struct textbuffer *textbuffer)
@@ -206,7 +262,6 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	char* path_copy = malloc(len + 1);
 	memcpy(path_copy, path, len + 1);
 
-	// FIXME: need to close FD !
 	int fd = open(path_copy, O_RDONLY);
 	if (!fd) {
 		return -errno;
@@ -214,6 +269,7 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	struct stat stat;
 	int r = fstat(fd, &stat);
 	if (r < 0) {
+		close(fd);
 		return -errno;
 	}
 
@@ -226,7 +282,8 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	}
 	textbuffer->basename++;
 
-	// Load file in chunk
+	// load file in chunk
+	int fail = 0;
 	ssize_t filesize = stat.st_size;
 	struct textchunk **chunk_emplace = &textbuffer->textchunk_head;
 	while (0 < filesize) {
@@ -235,26 +292,70 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 		chunk_emplace = &chunk->next;
 		textbuffer->textchunk_last = chunk;
 		if (!chunk) {
-			return -ENOMEM;
+			fail = -ENOMEM;
+			break;
 		}
 
 		ssize_t r = read(fd, chunk->text, textchunk_size);
 		if (r < 0) {
-			return -errno;
+			fail = -errno;
+			break;
 		}
 		if (r == 0) {
 			assert(filesize == 0);
 			// Broken invariant: r should always be <= filesize, and filesize always > 0
-			return -EINVAL;
+			fail = -EINVAL;
+			break;
 		}
 		chunk->cursor += r;
 		filesize -= r;
 		assert((r == textchunk_size) || (filesize == 0));
 	}
 
-	// TODO: cut the file into lines
+	close(fd);
+	if (fail) {
+		return fail;
+	}
 
-	// TODO: init one cursor
+	// cut the chunks into lines
+	filesize = stat.st_size;
+	struct textchunk *chunk = textbuffer->textchunk_head;
+	struct line **line_current = &(textbuffer->line_first); // null initially
+	while (0 < filesize) {
+		slice chunkslice = s(textchunk_begin(chunk), textchunk_begin(chunk));
+		filesize -= slice_len(chunkslice);
+		while (0 < slice_len(chunkslice)) {
+			slice line = chunkslice;
+			char *newline_char = (char *) memchr(line.start, '\n', slice_len(line));
+			if (newline_char) {
+				struct line *previous_line = *line_current;
+				*line_current = line_alloc_empty();
+				if_null(*line_current) {
+					return -ENOMEM;
+				}
+				line_link(previous_line, *line_current);
+				chunkslice.start = newline_char + 1;
+			} else {
+				// append everything to current line and clear current chunk
+				chunkslice.start = chunkslice.stop;
+			}
+			line_append_fragment(*line_current, line);
+		}
+	}
+	textbuffer->line_last = *line_current;
 
+	// init one cursor
+	textbuffer->cursor_list.cursor = (struct cursor) {
+		.line = textbuffer->line_first,
+		.lineno = 1,
+		.x_offset = 0,
+	};
+
+	return 0;
+}
+
+int textbuffer_free(struct textbuffer *textbuffer)
+{
+	// TODO
 	return 0;
 }

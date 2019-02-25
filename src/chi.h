@@ -268,7 +268,7 @@ typedef struct slice slice;
 slice s(void *start, void *stop);
 size_t slice_len(slice s);
 char* slice_to_string(slice s);
-size_t slice_empty(slice s);
+int slice_empty(slice s);
 int slice_write(slice s, int fd);
 int slice_read(slice s, int fd);
 size_t slice_copy(slice dst, const slice src);
@@ -585,7 +585,7 @@ struct line {
   struct textpiece {
     struct textpiece *next;
     slice slice;
-  } fragment;
+  } *fragment;
   size_t bytelen;
 };
 
@@ -613,7 +613,7 @@ struct textbuffer {
   struct line *line_first;
   struct line *line_last;
 
-  // cursors
+  // cursors, always ordered by cursor lineno
   struct cursor_list {
     struct cursor_list *next;
     struct cursor cursor;
