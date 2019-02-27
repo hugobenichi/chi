@@ -625,6 +625,7 @@ struct textbuffer {
 };
 
 int textbuffer_load(const char *path, struct textbuffer *textbuffer);
+void textbuffer_free(struct textbuffer *textbuffer);
 
 
 // TODO: define all ops

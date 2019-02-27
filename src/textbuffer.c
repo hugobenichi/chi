@@ -201,9 +201,24 @@ void textbuffer_init()
 	// setup memory for storing an index of textbuffer by name
 }
 
+static void textpiece_free(struct textpiece *textpiece)
+{
+	while (textpiece) {
+		struct textpiece *next = textpiece->next;
+		free(textpiece);
+		textpiece = next;
+	}
+}
+
 static struct line* line_alloc_empty()
 {
 	return calloc(sizeof(struct line), 1); // calloc because it needs to be zeroed
+}
+
+static void line_free(struct line *line)
+{
+	textpiece_free(line->fragment);
+	free(line);
 }
 
 // Link two lines together. Can handle nulls
@@ -354,8 +369,16 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	return 0;
 }
 
-int textbuffer_free(struct textbuffer *textbuffer)
+void textbuffer_free(struct textbuffer *textbuffer)
 {
-	// TODO
-	return 0;
+	assert(textbuffer);
+	free(textbuffer->path);
+	textchunk_free(textbuffer->textchunk_head); // CHECK: should this memory be zeroed ??
+	struct line *line = textbuffer->line_first;
+	while (line) {
+		struct line *next = line->next;
+		line_free(line);
+		line = next;
+	}
+	memset(textbuffer, 0, sizeof(struct textbuffer));
 }
