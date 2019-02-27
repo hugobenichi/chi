@@ -594,9 +594,15 @@ struct line {
 struct cursor {
   struct line *line;
   int lineno;
-  int x_offset;
+  int x_offset_actual;
+  int x_offset_want;
 };
 
+char* cursor_to_string(struct cursor *cursor);
+struct line* cursor_prev_line(struct cursor *cursor);
+struct line* cursor_next_line(struct cursor *cursor);
+
+// Used internally to textbuffer to read a file in segments, and to hold inserted content
 struct textchunk;
 
 struct textbuffer {
@@ -647,7 +653,6 @@ struct textbuffer_command {
 
 void textbuffer_init();
 struct err textbuffer_operation(struct textbuffer textbuffer, struct textbuffer_command *command);
-
 
 
 /// module VIEWS ///

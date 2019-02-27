@@ -14,8 +14,8 @@ struct textchunk {
 	char text[0];
 };
 
-#define textchunk_begin(chunk)	(&((chunk)->text))
-#define textchunk_end(chunk)	(&((chunk)->text + min((chunk)->cursor, textchunk_datasize))
+#define textchunk_begin(chunk)	((chunk)->text)
+#define textchunk_end(chunk)	((chunk)->text + (chunk)->cursor)
 
 static struct textchunk *textchunk_free_list_head = NULL;
 static int textchunk_total_count = 0;
@@ -221,6 +221,11 @@ static void line_free(struct line *line)
 	free(line);
 }
 
+static int line_x_length(struct line *line)
+{
+	return line->bytelen;
+}
+
 // Link two lines together. Can handle nulls
 static void line_link(struct line *line_first, struct line *line_second)
 {
@@ -290,12 +295,19 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 
 	textbuffer->path = path_copy;
 	textbuffer->basename = path_copy;
-	char* last_slash = path_copy;
-	while (last_slash) {
-		textbuffer->basename = last_slash;
-		last_slash = strchr(last_slash, '/');
+	//char* last_slash = path_copy;
+	//char* path_end = path_copy + len;
+	//while (last_slash) {
+	//	textbuffer->basename = last_slash;
+	//	last_slash = memchr(last_slash, '/', path_end - last_slash);
+	//	if (last_slash) last_slash++;
+	//}
+	//textbuffer->basename++;
+	for (char *c = path_copy; *c != 0; c++) {
+		if (*c == '/') {
+			textbuffer->basename = c + 1;
+		}
 	}
-	textbuffer->basename++;
 
 	// load file in chunk
 	int fail = 0;
@@ -335,9 +347,10 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	// cut the chunks into lines
 	filesize = stat.st_size;
 	struct textchunk *chunk = textbuffer->textchunk_head;
-	struct line **line_current = &(textbuffer->line_first); // null initially
+	struct line **line_current = &(textbuffer->line_last); // null initially
+// BUG: this does not correctly cut text into lines !
 	while (0 < filesize) {
-		slice chunkslice = s(textchunk_begin(chunk), textchunk_begin(chunk));
+		slice chunkslice = s(textchunk_begin(chunk), textchunk_end(chunk));
 		filesize -= slice_len(chunkslice);
 		while (0 < slice_len(chunkslice)) {
 			slice line = chunkslice;
@@ -348,22 +361,27 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 				if_null(*line_current) {
 					return -ENOMEM;
 				}
+				if_null(textbuffer->line_first) {
+					textbuffer->line_first = *line_current;
+				}
 				line_link(previous_line, *line_current);
 				chunkslice.start = newline_char + 1;
 			} else {
 				// append everything to current line and clear current chunk
 				chunkslice.start = chunkslice.stop;
 			}
+// BUG: what if the first chunk has no newline char (single line file)
 			line_append_fragment(*line_current, line);
 		}
 	}
-	textbuffer->line_last = *line_current;
+	//textbuffer->line_last = *line_current;
 
 	// init one cursor
 	textbuffer->cursor_list.cursor = (struct cursor) {
 		.line = textbuffer->line_first,
 		.lineno = 1,
-		.x_offset = 0,
+		.x_offset_actual = 0,
+		.x_offset_want = 0,
 	};
 
 	return 0;
@@ -381,4 +399,41 @@ void textbuffer_free(struct textbuffer *textbuffer)
 		line = next;
 	}
 	memset(textbuffer, 0, sizeof(struct textbuffer));
+}
+
+char* cursor_to_string(struct cursor *cursor)
+{
+	char *buffer = malloc(cursor->line->bytelen + 1);
+	char *a = buffer;
+	struct textpiece *fragment = cursor->line->fragment;
+	while (fragment) {
+		size_t len = slice_len(fragment->slice);
+		memcpy(a, fragment->slice.start, len);
+		a += len;
+		fragment = fragment->next;
+	}
+	*a = 0;
+	return buffer;
+}
+
+struct line* cursor_prev_line(struct cursor *cursor)
+{
+	struct line *prev = cursor->line->prev;
+	if (prev) {
+		cursor->line = prev;
+		cursor->lineno--;
+		cursor->x_offset_actual = min(cursor->x_offset_actual, line_x_length(prev));
+	}
+	return prev;
+}
+
+struct line* cursor_next_line(struct cursor *cursor)
+{
+	struct line *next = cursor->line->next;
+	if (next) {
+		cursor->line = next;
+		cursor->lineno++;
+		cursor->x_offset_actual = min(cursor->x_offset_actual, line_x_length(next));
+	}
+	return next;
 }

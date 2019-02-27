@@ -120,6 +120,25 @@ int main(int argc, char **args) {
 	struct editor editor = {};
 	resize(&editor, &framebuffer);
 
+	// Debugging textbuffer_load
+	struct textbuffer tb = {};
+	char file[] = "./src/chi.h";
+	textbuffer_load(file, &tb);
+	puts("loaded file");
+
+	struct cursor *cursor = &tb.cursor_list.cursor;
+	for (;;) {
+		printf("%d: %s\n", cursor->lineno, cursor_to_string(cursor));
+		term_get_input();
+		if_null(cursor_next_line(cursor)) {
+			break;
+		}
+	}
+
+	textbuffer_free(&tb);
+	puts("done");
+		if (1) return 0;
+
 	for (;;) {
 		struct input input = term_get_input();
 		print_input(input);
