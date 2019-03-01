@@ -366,6 +366,7 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 				}
 				line_link(previous_line, *line_current);
 				chunkslice.start = newline_char + 1;
+				line.stop = newline_char;
 			} else {
 				// append everything to current line and clear current chunk
 				chunkslice.start = chunkslice.stop;
