@@ -130,6 +130,40 @@ static inline const char* error_msg(struct err err)
 #define noerror() error_because(0)
 
 
+/// LISTS ///
+
+struct slist {
+    struct slist *next;
+};
+typedef struct slist slist;
+
+struct dlist {
+    struct dlist *next;
+    struct dlist *prev;
+};
+typedef struct dlist dlist;
+
+static inline void slist_insert(slist *head, slist* elem)
+{
+  elem->next = head->next;
+  head->next = elem;
+}
+
+static inline void dlist_insert(dlist *head, dlist* elem)
+{
+  elem->next = head->next;
+  head->next->prev = elem;
+
+  elem->prev = head;
+  head->next = elem;
+}
+
+#define container_of(ptr, sample_value, field) (__typeof__(sample_value) *)((char *)ptr - offsetof(__typeof__(sample_value), field))
+
+#define slist_foreach(elem_ptr, list_head, field) for (slist *elem_ptr = list_head->next; elem_ptr; elem_ptr = elem_ptr->next)
+#define dlist_foreach(elem_ptr, list_head, field) for (dlist *elem_ptr = list_head->next; elem_ptr; elem_ptr = elem_ptr->next)
+
+
 /// module GEOMETRY ///
 
 struct vec {
