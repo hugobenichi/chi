@@ -159,9 +159,19 @@ static inline void dlist_insert(dlist *head, dlist* elem)
 }
 
 #define container_of(ptr, sample_value, field) (__typeof__(sample_value) *)((char *)ptr - offsetof(__typeof__(sample_value), field))
+#define list_next(ptr, field) ((ptr) ? container_of((ptr)->field.next, *(ptr), field) : NULL)
+#define list_prev(ptr, field) ((ptr) ? container_of((ptr)->field.prev, *(ptr), field) : NULL)
 
-#define slist_foreach(elem_ptr, list_head, field) for (slist *elem_ptr = list_head->next; elem_ptr; elem_ptr = elem_ptr->next)
-#define dlist_foreach(elem_ptr, list_head, field) for (dlist *elem_ptr = list_head->next; elem_ptr; elem_ptr = elem_ptr->next)
+// This macro iterate over the linked container structs, without initialization of elem_ptr
+#define list_foreach(elem_ptr, field)                 for (; elem_ptr; elem_ptr = list_next(elem_ptr, field))
+// These macros iterate over the linked slist/dlist structs directly, without initialization of the ptr to slist/dlist struct
+#define slist_foreach(slist_ptr, list_head, field)    for (; slist_ptr; slist_ptr = slist_ptr->next)
+#define dlist_foreach(dlist_ptr, list_head, field)    for (; dlist_ptr; dlist_ptr = dlist_ptr->next)
+// This iterate over a list starting from a head, not from the first element
+#define list_foreach_from_head(elem_ptr, list_head, field)				\
+	for (elem_ptr = container_of((list_head)->next, elem_ptr, field);	\
+	     &elem_ptr->field != (list_head);					\
+	     elem_ptr = container_of(elem_ptr->field.next, elem_ptr, field))
 
 
 /// module GEOMETRY ///
@@ -619,7 +629,7 @@ struct line {
   struct textpiece {
     struct textpiece *next;
     slice slice;
-  } *fragment;
+  } *fragments;
   size_t bytelen;
 };
 

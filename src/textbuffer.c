@@ -217,7 +217,7 @@ static struct line* line_alloc_empty()
 
 static void line_free(struct line *line)
 {
-	textpiece_free(line->fragment);
+	textpiece_free(line->fragments);
 	free(line);
 }
 
@@ -262,7 +262,7 @@ static void line_append_fragment(struct line *line, slice fragment)
 	if (slice_empty(fragment)) {
 		return;
 	}
-	struct textpiece **last_fragment = &line->fragment;
+	struct textpiece **last_fragment = &line->fragments;
 	while (*last_fragment) {
 		*last_fragment = (*last_fragment)->next;
 	}
@@ -345,10 +345,10 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 	}
 
 	// cut the chunks into lines
+// BUG: what if the first chunk has no newline char (single line file)
 	filesize = stat.st_size;
 	struct textchunk *chunk = textbuffer->textchunk_head;
 	struct line **line_current = &(textbuffer->line_last); // null initially
-// BUG: this does not correctly cut text into lines !
 	while (0 < filesize) {
 		slice chunkslice = s(textchunk_begin(chunk), textchunk_end(chunk));
 		filesize -= slice_len(chunkslice);
@@ -371,11 +371,9 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 				// append everything to current line and clear current chunk
 				chunkslice.start = chunkslice.stop;
 			}
-// BUG: what if the first chunk has no newline char (single line file)
 			line_append_fragment(*line_current, line);
 		}
 	}
-	//textbuffer->line_last = *line_current;
 
 	// init one cursor
 	textbuffer->cursor_list.cursor = (struct cursor) {
@@ -406,7 +404,7 @@ char* cursor_to_string(struct cursor *cursor)
 {
 	char *buffer = malloc(cursor->line->bytelen + 1);
 	char *a = buffer;
-	struct textpiece *fragment = cursor->line->fragment;
+	struct textpiece *fragment = cursor->line->fragments;
 	while (fragment) {
 		size_t len = slice_len(fragment->slice);
 		memcpy(a, fragment->slice.start, len);
