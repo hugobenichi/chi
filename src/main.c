@@ -114,7 +114,7 @@ static void err_stack_trace_example()
 int main(int argc, char **args) {
 	log_init();
 	config_init();
-	term_init();
+	term_init(STDIN_FILENO, STDOUT_FILENO);
 
 	struct framebuffer framebuffer = {};
 	struct editor editor = {};
@@ -129,7 +129,7 @@ int main(int argc, char **args) {
 	struct cursor *cursor = &tb.cursor_list.cursor;
 	for (;;) {
 		printf("%d: %s\n", cursor->lineno, cursor_to_string(cursor));
-		term_get_input();
+		term_get_input(STDIN_FILENO);
 		if_null(cursor_next_line(cursor)) {
 			break;
 		}
@@ -140,7 +140,7 @@ int main(int argc, char **args) {
 		if (1) return 0;
 
 	for (;;) {
-		struct input input = term_get_input();
+		struct input input = term_get_input(STDIN_FILENO);
 		print_input(input);
 		switch (input.code) {
 		case INPUT_RESIZE_CODE:
@@ -158,6 +158,6 @@ int main(int argc, char **args) {
 		char buffer[256] = {};
 		framebuffer_print(buffer, 256, &framebuffer);
 		puts(buffer);
-		framebuffer_draw_to_term(&framebuffer, v(0,0));
+		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
 	}
 }

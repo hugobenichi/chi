@@ -6,10 +6,8 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-static const char term_seq_finish[]                       = "\x1b[0m";
-static const char term_newline[]                          = "\r\n";
-
-static struct termios termios_initial = {};
+#define TERM_COLOR_END		"\027[0m"
+#define TERM_NEWLINE		"\r\n"
 
 static const char term_setup_sequence[] =
 	"\x1b[s"             // cursor save
@@ -27,13 +25,25 @@ static const char term_restore_sequence[] =
 	"\x1b[u"             // cursor restore
 	;
 
-static void term_restore();
-void term_init()
+static struct termios termios_initial = {};
+static int term_init_in_fd;
+static int term_init_out_fd;
+
+static void term_restore()
+{
+	assert_success(tcsetattr(term_init_in_fd, TCSAFLUSH, &termios_initial));
+	assert_success(write(term_init_out_fd, term_restore_sequence, strlen(term_restore_sequence)));
+}
+
+void term_init(int term_in_fd, int term_out_fd)
 {
 
 if (CONFIG.debug_noterm) return;
 
-	assert_success(tcgetattr(STDIN_FILENO, &termios_initial));
+	term_init_in_fd = term_in_fd;
+	term_init_out_fd = term_out_fd;
+
+	assert_success(tcgetattr(term_in_fd, &termios_initial));
 
 	struct termios termios_raw = termios_initial;
 	// Input modes
@@ -59,15 +69,9 @@ if (CONFIG.debug_noterm) return;
 	termios_raw.c_cc[VTIME] = 100;			// VTIME x 100 ms timeout
 	termios_raw.c_cflag |= CS8;                     // 8 bits chars
 
-	assert_success(write(STDOUT_FILENO, term_setup_sequence, strlen(term_setup_sequence)));
-	assert_success(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_raw));
+	assert_success(write(term_out_fd, term_setup_sequence, strlen(term_setup_sequence)));
+	assert_success(tcsetattr(term_in_fd, TCSAFLUSH, &termios_raw));
 	atexit(term_restore);
-}
-
-static void term_restore()
-{
-	assert_success(tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_initial));
-	assert_success(write(STDOUT_FILENO, term_restore_sequence, strlen(term_restore_sequence)));
 }
 
 static const char *term_color_string(int fg, int bg)
@@ -95,7 +99,7 @@ void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 	assert(framebuffer->output_buffer.memory);
 }
 
-void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
+void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, vec cursor)
 {
 	struct buffer buffer = framebuffer->output_buffer;
 	buffer.cursor = 0;
@@ -124,9 +128,9 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 			bg++;
 		}
 		buffer_append(&buffer, section_start, text - section_start);
-		buffer_append_cstring(&buffer, "\027[0m"); // Finish sequence for colored string
+		buffer_append_cstring(&buffer, TERM_COLOR_END); // Finish sequence for colored string
 		if (x == window.x) {
-			buffer_append_cstring(&buffer, "\r\n");
+			buffer_append_cstring(&buffer, TERM_NEWLINE);
 			x = 0;
 		}
 	}
@@ -135,7 +139,7 @@ void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor)
 	buffer_appendf(&buffer, "\027[%d;%dH", cursor.x + 1, cursor.y + 1);
 	buffer_append_cstring(&buffer, "\x1b[?25h");		// show cursor
 
-	assert_success(write(STDOUT_FILENO, buffer.memory, buffer.cursor));
+	assert_success(write(term_out_fd, buffer.memory, buffer.cursor));
 	// TODO: instead return error_because(errno);
 }
 
@@ -326,13 +330,13 @@ static char input_buffer[3] = {};
 static char *pending_input_cursor = NULL;
 static char *pending_input_end = NULL;
 
-static struct input term_get_mouse_input();
+static struct input term_get_mouse_input(int term_in_fd);
 
 // This function is not re-entrant. To make it re-entrant, stdin needs to be parametrized as a fd value since
 // term_get_input needs to own and see all the input byte stream on standard input anyway.
 // Making it re-entrant like so could help with testing or multi client / multi terminal setups.
 // Note that for testing only use cases, the stdin fd can be redirected with dup() anyway.
-struct input term_get_input()
+struct input term_get_input(term_in_fd)
 {
 	// Consume any pending input first
 	if (pending_input_cursor < pending_input_end) {
@@ -342,7 +346,7 @@ struct input term_get_input()
 	memset(input_buffer, 0, sizeof(input_buffer));
 	ssize_t n = 0;
 	// If timeout is set low enough, this turns into a polling loop.
-	while (!(n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer)))) {
+	while (!(n = read(term_in_fd, input_buffer, sizeof(input_buffer)))) {
 //printf("%s: %i,%i,%i\n\r", "get_input: read", input_buffer[0], input_buffer[1], input_buffer[2]);
 	}
 
@@ -381,7 +385,7 @@ struct input term_get_input()
 		case 'D':
 			return input_for_code(INPUT_KEY_ARROW_LEFT);
 		case 'M':
-			return term_get_mouse_input();
+			return term_get_mouse_input(term_in_fd);
 		}
 	}
 
@@ -401,10 +405,10 @@ static inline int mouse_coord_fixup(int coord) {
 	return coord;
 }
 
-static struct input term_get_mouse_input()
+static struct input term_get_mouse_input(int term_in_fd)
 {
 	memset(input_buffer, 0, sizeof(input_buffer));
-	const ssize_t n = read(STDIN_FILENO, input_buffer, sizeof(input_buffer));
+	const ssize_t n = read(term_in_fd, input_buffer, sizeof(input_buffer));
 	if (n > 3) {
 		return input_for_error(EOVERFLOW);
 	}

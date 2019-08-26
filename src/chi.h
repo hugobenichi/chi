@@ -566,22 +566,23 @@ static inline int is_printable_key(int code)
 
 /// module TERM ///
 
-void term_init();
-vec term_get_size();
-struct input term_get_input();
+void term_init(int term_in_fd, int term_out_fd);  // put the terminal in raw mode
+vec term_get_size();                              // return the current size of the terminal where x:rows and y::columns
+struct input term_get_input(int term_in_fd);      // return the next keyboard or mouse input
 
 
+// struct for managing a 2d grid of character "pixels" and draws them on the terminal
 struct framebuffer {
   vec window;                     // size of the display
-  size_t buffer_len;              // size of the various buffers.
-  char *text;                     // 2D buffer for storing text.
-  int *fg_colors;                 // 2d buffer for storing foreground colors,
-  int *bg_colors;                 // 2d buffer for storing foreground colors,
-  struct buffer output_buffer;    // append buffer for storing all control sequences and output text to the terminal for one frame.
+  size_t buffer_len;              // size of the various buffers
+  char *text;                     // 2d buffer for storing text
+  int *fg_colors;                 // 2d buffer for storing foreground colors
+  int *bg_colors;                 // 2d buffer for storing background colors
+  struct buffer output_buffer;    // append buffer for storing all control sequences and output text to the terminal for one frame
 };
 
 void framebuffer_init(struct framebuffer *framebuffer, vec term_size);
-void framebuffer_draw_to_term(struct framebuffer *framebuffer, vec cursor);
+void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, vec cursor);
 void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
