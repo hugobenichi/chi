@@ -144,6 +144,7 @@ void buffer_ensure_size(struct buffer *buffer, size_t size)
 		return;
 	}
 	buffer->memory = realloc(buffer->memory, size);
+	buffer->size = size;
 }
 
 void buffer_ensure_capacity(struct buffer *buffer, size_t additional_capacity)

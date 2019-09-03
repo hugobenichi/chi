@@ -127,17 +127,19 @@ int main(int argc, char **args) {
 	puts("loaded file");
 
 	struct cursor *cursor = &tb.cursor_list.cursor;
+	if (0)
 	for (;;) {
-		printf("%d: %s\n", cursor->lineno, cursor_to_string(cursor));
+		char* line = cursor_to_string(cursor);
+		printf("%d: %s\n", cursor->lineno, line);
 		term_get_input(STDIN_FILENO);
 		if_null(cursor_next_line(cursor)) {
 			break;
 		}
+		free(line);
 	}
 
 	textbuffer_free(&tb);
-	puts("done");
-		if (1) return 0;
+	if (0) return 0;
 
 	for (;;) {
 		struct input input = term_get_input(STDIN_FILENO);
@@ -155,9 +157,11 @@ int main(int argc, char **args) {
 		editor_render(&editor, &framebuffer);
 
 
-		char buffer[256] = {};
-		framebuffer_print(buffer, 256, &framebuffer);
-		puts(buffer);
+		if (0) {
+			char buffer[256] = {};
+			framebuffer_print(buffer, 256, &framebuffer);
+			puts(buffer);
+		}
 		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
 	}
 }
