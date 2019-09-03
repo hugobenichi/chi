@@ -336,7 +336,7 @@ static struct input term_get_mouse_input(int term_in_fd);
 // term_get_input needs to own and see all the input byte stream on standard input anyway.
 // Making it re-entrant like so could help with testing or multi client / multi terminal setups.
 // Note that for testing only use cases, the stdin fd can be redirected with dup() anyway.
-struct input term_get_input(term_in_fd)
+struct input term_get_input(int term_in_fd)
 {
 	// Consume any pending input first
 	if (pending_input_cursor < pending_input_end) {
