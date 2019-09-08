@@ -6,23 +6,54 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-#define TERM_COLOR_END		"\027[0m"
 #define TERM_NEWLINE		"\r\n"
+#define TERM_ESC		"ESC" //"\x1b"
+
+#define NUMCOLOR 256
+static const char* fg_color_control_string[NUMCOLOR];
+static const char* bg_color_control_string[NUMCOLOR];
+
+static void color_init() {
+	size_t stringlen = strlen(";48;5;" __stringize2(NUMCOLOR) "m") + /* null byte */ 1;
+	char* buffer = malloc(2 * NUMCOLOR * stringlen);
+	// if needed: free(fg_color_control_string[0]);
+//printf("NUMCOLOR:%d\n", NUMCOLOR);
+	for (int i = 0; i < NUMCOLOR; i++) {
+		sprintf(buffer, "38;5;%d", i);
+		fg_color_control_string[i] = buffer;
+		buffer += stringlen;
+		sprintf(buffer, ";48;5;%dm", i);
+		bg_color_control_string[i] = buffer;
+		buffer += stringlen;
+	}
+}
+
+static void color_start(struct buffer* buffer, int fg, int bg)
+{
+	buffer_append_cstring(buffer, TERM_ESC "[");
+	buffer_append_cstring(buffer, fg_color_control_string[fg]);
+	buffer_append_cstring(buffer, bg_color_control_string[bg]);
+}
+
+static void color_stop(struct buffer* buffer)
+{
+	buffer_append_cstring(buffer, TERM_ESC "[0m");
+}
 
 static const char term_setup_sequence[] =
-	"\x1b[s"             // cursor save
-	"\x1b[?47h"          // switch offscreen
-	"\x1b[?1000h"        // mouse event on
-	"\x1b[?1002h"        // mouse tracking on
-	"\x1b[?1004h"        // switch focus event on
+	TERM_ESC "[s"             // cursor save
+	TERM_ESC "[?47h"          // switch offscreen
+	TERM_ESC "[?1000h"        // mouse event on
+	TERM_ESC "[?1002h"        // mouse tracking on
+	TERM_ESC "[?1004h"        // switch focus event on
 	;
 
 static const char term_restore_sequence[] =
-	"\x1b[?1004l"        // switch focus event off
-	"\x1b[?1002l"        // mouse tracking off
-	"\x1b[?1000l"        // mouse event off
-	"\x1b[?47l"          // switch back to main screen
-	"\x1b[u"             // cursor restore
+	TERM_ESC "[?1004l"        // switch focus event off
+	TERM_ESC "[?1002l"        // mouse tracking off
+	TERM_ESC "[?1000l"        // mouse event off
+	TERM_ESC "[?47l"          // switch back to main screen
+	TERM_ESC "[u"             // cursor restore
 	;
 
 static struct termios termios_initial = {};
@@ -37,6 +68,7 @@ static void term_restore()
 
 void term_init(int term_in_fd, int term_out_fd)
 {
+	color_init();
 
 if (CONFIG.debug_noterm) return;
 
@@ -74,12 +106,6 @@ if (CONFIG.debug_noterm) return;
 	atexit(term_restore);
 }
 
-static const char *term_color_string(int fg, int bg)
-{
-	// TODO: decide on color encoding
-	return "";
-}
-
 void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 {
 	assert(framebuffer);
@@ -97,6 +123,8 @@ void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 	assert(framebuffer->fg_colors);
 	assert(framebuffer->bg_colors);
 	assert(framebuffer->output_buffer.memory);
+
+	framebuffer_clear(framebuffer, r(v(0,0), term_size));
 }
 
 void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, vec cursor)
@@ -105,9 +133,9 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	buffer.cursor = 0;
 
 	// How to use slice for copying immutable const char* into a mutable slice ?
-	buffer_append_cstring(&buffer, "\x1b" "c");		// clear term screen
-	buffer_append_cstring(&buffer, "\x1b[?25l");		// hide cursor to avoid cursor blinking
-	buffer_append_cstring(&buffer, "\x1b[H");		// go home, i.e top left
+	buffer_append_cstring(&buffer, TERM_ESC "" "c");		// clear term screen
+	buffer_append_cstring(&buffer, TERM_ESC "[?25l");		// hide cursor to avoid cursor blinking
+	buffer_append_cstring(&buffer, TERM_ESC "[H");		// go home, i.e top left
 
 	vec window = framebuffer->window;
 	char *text = framebuffer->text;
@@ -115,12 +143,12 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	int *fg = framebuffer->fg_colors;
 	int *bg = framebuffer->bg_colors;
 	int x = 0;
+//printf("text,text_end: %p,%p\n", text, text_end);
 	while (text < text_end) {
 		char *section_start = text;
 		int current_fg = *fg;
 		int current_bg = *bg;
-		buffer_append_cstring(&buffer, term_color_string(current_fg, current_bg));
-		// Start sequence for colored string
+		color_start(&buffer, current_fg, current_bg);
 		while (x < window.x && *fg == current_fg && *bg == current_bg) {
 			x++;
 			text++;
@@ -128,7 +156,7 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 			bg++;
 		}
 		buffer_append(&buffer, section_start, text - section_start);
-		buffer_append_cstring(&buffer, TERM_COLOR_END); // Finish sequence for colored string
+		color_stop(&buffer);
 		if (x == window.x) {
 			buffer_append_cstring(&buffer, TERM_NEWLINE);
 			x = 0;
@@ -136,9 +164,10 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	}
 
 	// put cursor: terminal cursor positions start at (1,1) instead of (0,0).
-	buffer_appendf(&buffer, "\027[%d;%dH", cursor.x + 1, cursor.y + 1);
-	buffer_append_cstring(&buffer, "\x1b[?25h");		// show cursor
+	buffer_appendf(&buffer, TERM_ESC "[%d;%dH", cursor.x + 1, cursor.y + 1);
+	buffer_append_cstring(&buffer, TERM_ESC "[?25h");		// show cursor
 
+//printf("buffer cursor:%lu\n", buffer.cursor);
 	assert_success(write(term_out_fd, buffer.memory, buffer.cursor));
 	// TODO: instead return error_because(errno);
 }
@@ -175,7 +204,12 @@ void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
 
 void fill_color_rec(int *color_array, vec window, int color, rec rec)
 {
+	char buf[256];
+//rec_print(buf, 256, rec);
+	puts(buf);
 	clamp_rec(&rec, window);
+//rec_print(buf, 256, rec);
+	puts(buf);
 	for (int y = rec.y0; y < rec.y1; y++) {
 		for (int x = rec.x0; x < rec.x1; x++) {
 			*(color_array + window.x * y + x) = color;

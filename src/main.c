@@ -6,10 +6,6 @@ void editor_init(struct editor *editor, vec term_size)
 {
 }
 
-void editor_render(struct editor *editor, struct framebuffer *framebuffer)
-{
-}
-
 void resize(struct editor *editor, struct framebuffer *framebuffer)
 {
 	vec term_size = term_get_size();
@@ -141,6 +137,7 @@ int main(int argc, char **args) {
 	textbuffer_free(&tb);
 	if (0) return 0;
 
+
 	for (;;) {
 		struct input input = term_get_input(STDIN_FILENO);
 		print_input(input);
@@ -154,14 +151,14 @@ int main(int argc, char **args) {
 		default:
 			break;
 		}
-		editor_render(&editor, &framebuffer);
-
 
 		if (0) {
 			char buffer[256] = {};
 			framebuffer_print(buffer, 256, &framebuffer);
 			puts(buffer);
 		}
+		framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
+		framebuffer_put_color_bg(&framebuffer, 18, r(v(3,3), v(25,25)));
 		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
 	}
 }

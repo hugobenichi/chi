@@ -156,6 +156,7 @@ void buffer_append(struct buffer *dst, const char *src, size_t srclen)
 {
 	buffer_ensure_capacity(dst, srclen);
 	memcpy(buffer_end(*dst), src, srclen);
+	dst->cursor += srclen;
 }
 
 
