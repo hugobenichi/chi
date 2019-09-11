@@ -17,6 +17,8 @@ void editor_process_input(struct editor *editor, struct input input)
 {
 }
 
+// TODO: put the output in a buffer, not on stdout
+// TODO: turn this into table
 static void print_input(struct input input)
 {
 	char *s = "UNKNOWN";
@@ -120,7 +122,6 @@ int main(int argc, char **args) {
 	struct textbuffer tb = {};
 	char file[] = "./src/chi.h";
 	textbuffer_load(file, &tb);
-	puts("loaded file");
 
 	struct cursor *cursor = &tb.cursor_list.cursor;
 	if (0)
@@ -140,7 +141,7 @@ int main(int argc, char **args) {
 
 	for (;;) {
 		struct input input = term_get_input(STDIN_FILENO);
-		print_input(input);
+		//print_input(input);
 		switch (input.code) {
 		case INPUT_RESIZE_CODE:
 			resize(&editor, &framebuffer);
@@ -157,8 +158,14 @@ int main(int argc, char **args) {
 			framebuffer_print(buffer, 256, &framebuffer);
 			puts(buffer);
 		}
-		framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
+		//framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
 		framebuffer_put_color_bg(&framebuffer, 18, r(v(3,3), v(25,25)));
 		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
 	}
 }
+
+/* Next tasks
+ *	- change print_input to emit to buffer, show it on screen
+ *	- debug framebuffer_draw horizontal width
+ *	- add handling for hjkl and make it move a rect on screen
+ */

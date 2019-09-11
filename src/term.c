@@ -7,17 +7,23 @@
 #include <termios.h>
 
 #define TERM_NEWLINE		"\r\n"
-#define TERM_ESC		"ESC" //"\x1b"
+#define TERM_ESC		"\x1b"
+
+#define DEBUG			0
 
 #define NUMCOLOR 256
 static const char* fg_color_control_string[NUMCOLOR];
 static const char* bg_color_control_string[NUMCOLOR];
 
+// TODO: put this into a config file ?
+static const int default_color_fg = 1;
+static const int default_color_bg = 0;
+static const char default_text = '?';
+
 static void color_init() {
 	size_t stringlen = strlen(";48;5;" __stringize2(NUMCOLOR) "m") + /* null byte */ 1;
 	char* buffer = malloc(2 * NUMCOLOR * stringlen);
 	// if needed: free(fg_color_control_string[0]);
-//printf("NUMCOLOR:%d\n", NUMCOLOR);
 	for (int i = 0; i < NUMCOLOR; i++) {
 		sprintf(buffer, "38;5;%d", i);
 		fg_color_control_string[i] = buffer;
@@ -30,6 +36,8 @@ static void color_init() {
 
 static void color_start(struct buffer* buffer, int fg, int bg)
 {
+	assert_range(0, fg, NUMCOLOR - 1);
+	assert_range(0, bg, NUMCOLOR - 1);
 	buffer_append_cstring(buffer, TERM_ESC "[");
 	buffer_append_cstring(buffer, fg_color_control_string[fg]);
 	buffer_append_cstring(buffer, bg_color_control_string[bg]);
@@ -106,6 +114,95 @@ if (CONFIG.debug_noterm) return;
 	atexit(term_restore);
 }
 
+#define iter_line_min(iter_p)	((iter_p)->window).y0
+#define iter_line_max(iter_p)	((iter_p)->window).y1
+#define iter_line_len(iter_p)	rec_w((iter_p)->window)
+#define iter_height(iter_p)	rec_h((iter_p)->window)
+#define iter_offset(iter_p)	((iter_p)->stride * (iter_p)->line + (iter_p)->window.x0)
+
+struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec)
+{
+	clamp_rec(&rec, framebuffer->window);
+	return (struct framebuffer_iter) {
+		.text = framebuffer->text,
+		.fg = framebuffer->fg_colors,
+		.bg = framebuffer->bg_colors,
+		.stride = framebuffer->window.x,
+		.window = rec,
+		// Start just before the first line. Empty iterator
+		// will correctly not move forward.
+		.line = rec.y0 - 1,
+	};
+}
+
+void framebuffer_iter_reset_forward(struct framebuffer_iter *iter)
+{
+	iter->line = iter_line_min(iter) - 1;
+}
+
+void framebuffer_iter_reset_backward(struct framebuffer_iter *iter)
+{
+	iter->line = iter_line_max(iter) + 1;
+}
+
+void framebuffer_iter_goto(struct framebuffer_iter *iter, int n)
+{
+	iter->line = clamp(n, iter_line_min(iter), iter_line_max(iter));
+}
+
+void framebuffer_iter_move(struct framebuffer_iter *iter, int n)
+{
+	framebuffer_iter_goto(iter, iter->line + n);
+}
+
+int framebuffer_iter_next(struct framebuffer_iter *iter)
+{
+	int min = iter_line_min(iter);
+	int max = iter_line_max(iter);
+	assert_range(min - 1, iter->line, max + 1);
+	if (max <= iter->line) {
+		return 0;
+	}
+	iter->line++;
+	return 1;
+}
+
+int framebuffer_iter_prev(struct framebuffer_iter *iter)
+{
+	int min = iter_line_min(iter);
+	int max = iter_line_max(iter);
+	assert_range(min - 1, iter->line, max + 1);
+	if (iter->line <= min) {
+		return 0;
+	}
+	iter->line--;
+	return 1;
+}
+
+size_t framebuffer_push_text(struct framebuffer_iter *iter, char *text, size_t size)
+{
+	assert_range(iter_line_min(iter), iter->line, iter_line_max(iter));
+	size = min(size, (size_t) iter_line_len(iter));
+	memcpy(iter->text + iter_offset(iter), text, size);
+	return size;
+}
+
+size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size)
+{
+	assert_range(iter_line_min(iter), iter->line, iter_line_max(iter));
+	size = min(size, (size_t) iter_line_len(iter));
+	memset_i32(iter->fg + iter_offset(iter), fg, size * sizeof(int));
+	return size;
+}
+
+size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size)
+{
+	assert_range(iter_line_min(iter), iter->line, iter_line_max(iter));
+	size = min(size, (size_t) iter_line_len(iter));
+	memset_i32(iter->bg + iter_offset(iter), bg, size * sizeof(int));
+	return size;
+}
+
 void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 {
 	assert(framebuffer);
@@ -118,13 +215,14 @@ void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 	framebuffer->bg_colors = realloc(framebuffer->bg_colors, sizeof(int) * grid_size);
 
 	buffer_ensure_size(&framebuffer->output_buffer, 0x10000);
+	memset(framebuffer->text, default_text, grid_size);
+	memset_i32(framebuffer->fg_colors, default_color_fg, sizeof(int) * grid_size);
+	memset_i32(framebuffer->bg_colors, default_color_bg, sizeof(int) * grid_size);
 
 	assert(framebuffer->text);
 	assert(framebuffer->fg_colors);
 	assert(framebuffer->bg_colors);
 	assert(framebuffer->output_buffer.memory);
-
-	framebuffer_clear(framebuffer, r(v(0,0), term_size));
 }
 
 void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, vec cursor)
@@ -135,7 +233,7 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	// How to use slice for copying immutable const char* into a mutable slice ?
 	buffer_append_cstring(&buffer, TERM_ESC "" "c");		// clear term screen
 	buffer_append_cstring(&buffer, TERM_ESC "[?25l");		// hide cursor to avoid cursor blinking
-	buffer_append_cstring(&buffer, TERM_ESC "[H");		// go home, i.e top left
+	buffer_append_cstring(&buffer, TERM_ESC "[H");			// go home, i.e top left
 
 	vec window = framebuffer->window;
 	char *text = framebuffer->text;
@@ -143,11 +241,16 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	int *fg = framebuffer->fg_colors;
 	int *bg = framebuffer->bg_colors;
 	int x = 0;
-//printf("text,text_end: %p,%p\n", text, text_end);
+debugf("text,text_end: %p,%p\n", text, text_end);
+ifdebug for (int i = 0; i < 40; i++) { //window.x * window.y; i++) {
+	printf("%d:[%d,%d] ", i, *(framebuffer->fg_colors + i), *(framebuffer->bg_colors + i));
+}
+debugf("\n");
 	while (text < text_end) {
 		char *section_start = text;
 		int current_fg = *fg;
 		int current_bg = *bg;
+debugf("section color offset +x:%ld fg:%d bg:%d\n", (ssize_t)(section_start - text), current_fg, current_bg);
 		color_start(&buffer, current_fg, current_bg);
 		while (x < window.x && *fg == current_fg && *bg == current_bg) {
 			x++;
@@ -167,48 +270,27 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	buffer_appendf(&buffer, TERM_ESC "[%d;%dH", cursor.x + 1, cursor.y + 1);
 	buffer_append_cstring(&buffer, TERM_ESC "[?25h");		// show cursor
 
-//printf("buffer cursor:%lu\n", buffer.cursor);
+debugf("buffer cursor:%lu\n", buffer.cursor);
 	assert_success(write(term_out_fd, buffer.memory, buffer.cursor));
 	// TODO: instead return error_because(errno);
 }
 
-static int clamp(int v, int lo, int hi)
-{
-	if (v < lo) return lo;
-	if (hi < v) return hi;
-	return v;
-}
-
-static void clamp_rec(rec *rec, vec window)
-{
-	rec->x0 = clamp(rec->x0, 0, window.x);
-	rec->y0 = clamp(rec->y0, 0, window.y);
-	rec->x1 = clamp(rec->x1, rec->x0, window.x);
-	rec->y1 = clamp(rec->y1, rec->y0, window.y);
-}
-
 void framebuffer_clear(struct framebuffer *framebuffer, rec rec)
 {
-	// TODO: put this into a config file ?
-	static const int default_color_fg = 1;
-	static const int default_color_bg = 0;
-	static const char default_text = ' ';
-
 	struct framebuffer_iter iter = framebuffer_iter_make(framebuffer, rec);
 	while (framebuffer_iter_next(&iter)) {
-		memset(iter.text, default_text, iter.line_length);
-		framebuffer_push_fg(&iter, default_color_fg, iter.line_length);
-		framebuffer_push_bg(&iter, default_color_bg, iter.line_length);
+debugf("iterator current:%d max:%d\n", iter.line, iter_line_max(&iter));
+		memset(iter.text, default_text, iter_line_len(&iter));
+		framebuffer_push_fg(&iter, default_color_fg, iter_line_len(&iter));
+		framebuffer_push_bg(&iter, default_color_bg, iter_line_len(&iter));
 	}
 }
 
 void fill_color_rec(int *color_array, vec window, int color, rec rec)
 {
 	char buf[256];
-//rec_print(buf, 256, rec);
 	puts(buf);
 	clamp_rec(&rec, window);
-//rec_print(buf, 256, rec);
 	puts(buf);
 	for (int y = rec.y0; y < rec.y1; y++) {
 		for (int x = rec.x0; x < rec.x1; x++) {
@@ -225,95 +307,6 @@ void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec)
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec)
 {
 	fill_color_rec(framebuffer->bg_colors, framebuffer->window, bg, rec);
-}
-
-struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec)
-{
-	vec window = framebuffer->window;
-	clamp_rec(&rec, window);
-	return (struct framebuffer_iter) {
-		.text = framebuffer->text,
-		.fg = framebuffer->fg_colors,
-		.bg = framebuffer->bg_colors,
-		.stride = window.x,
-		.line_length = rec_w(rec),
-		.line_max = rec_h(rec),
-		// Start just before the first line. Empty iterator with
-		// line_max = 0 will correctly not moved forward.
-		.line_current = -1,
-	};
-}
-
-void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset)
-{
-	offset = min(offset, iter->line_length);
-	iter->line_length -= offset;
-	iter->text += offset;
-	iter->fg += offset;
-	iter->bg += offset;
-}
-void framebuffer_iter_reset_first(struct framebuffer_iter *iter)
-{
-	iter->line_current = -1;
-}
-
-void framebuffer_iter_reset_last(struct framebuffer_iter *iter)
-{
-	iter->line_current = iter->line_max;
-}
-
-int framebuffer_iter_next(struct framebuffer_iter *iter)
-{
-	assert(-1 <= iter->line_current);
-	assert(iter->line_current <= iter->line_max);
-	int done = (iter->line_current == iter->line_max);
-	if (!done) {
-		iter->text += iter->stride;
-		iter->fg += iter->stride * sizeof(int);
-		iter->bg += iter->stride * sizeof(int);
-		iter->line_current++;
-	}
-	return done;
-}
-
-int framebuffer_iter_prev(struct framebuffer_iter *iter)
-{
-	assert(-1 <= iter->line_current);
-	assert(iter->line_current <= iter->line_max);
-	int done = (iter->line_current == -1);
-	if (!done) {
-		iter->text -= iter->stride;
-		iter->fg -= iter->stride * sizeof(int);
-		iter->bg -= iter->stride * sizeof(int);
-		iter->line_current--;
-	}
-	return done;
-}
-
-size_t framebuffer_push_text(struct framebuffer_iter *iter, char *text, size_t size)
-{
-	size = min(size, iter->line_length);
-	memcpy(iter->text, text, size);
-	return size;
-}
-
-size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size)
-{
-	size = min(size, iter->line_length);
-	// TODO: I need a 4bytes memset !
-	for (size_t x = 0; x < iter->line_length; x++) {
-		*(iter->fg + x) = fg;
-	}
-	return size;
-}
-
-size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size)
-{
-	size = min(size, iter->line_length);
-	for (size_t x = 0; x < iter->line_length; x++) {
-		*(iter->bg + x) = bg;
-	}
-	return size;
 }
 
 vec term_get_size()
@@ -465,5 +458,4 @@ static struct input term_get_mouse_input(int term_in_fd)
 		.mouse_click.x = mouse_coord_fixup(input_buffer[1]),
 		.mouse_click.y = mouse_coord_fixup(input_buffer[2]),
 	};
-
 }

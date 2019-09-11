@@ -1,7 +1,7 @@
 #include <chi.h>
 
 struct config CONFIG = {
-  .debug_noterm = 1,
+  .debug_noterm = 0,
   .debug_config = 0,
 };
 

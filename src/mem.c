@@ -217,3 +217,21 @@ size_t copy_slice_buffer_full(slice dst, buffer src)
 {
 	return slice_copy(dst, buffer_to_slice_full(src));
 }
+
+void memset_i32(void* dst, int val, size_t len)
+{
+	int* p = dst;
+	int* end = (int*) ((char*)dst + len);
+	while (p < end) {
+		*p++ = val;
+	}
+}
+
+void memset_u32(void* dst, unsigned int val, size_t len)
+{
+	unsigned int* p = dst;
+	unsigned int* end = (unsigned int*) ((char*)dst + len);
+	while (p < end) {
+		*p++ = val;
+	}
+}

@@ -75,7 +75,10 @@ static inline void fatal(const char *format, ...)
 #define assertf(condition, format, ...) if (!(condition)) fatal(__LOC__ " :%s: " format, __func__, ##__VA_ARGS__)
 #define assert_success(condition) assertf(-1 < condition, "assert failed: " __stringize2(condition) " failed with: %s", strerror(errno))
 #define assertf_success(condition, format, ...) if (condition) fatal(__LOC__ " %s: %s: " format, __func__, strerror(errno), ##__VA_ARGS__)
+#define assert_range(a, b, c) assertf((a <= b) && (b <= c),__stringize2(%ld <= %ld && %ld <= %ld) " failed", a, b, b, c)
 
+#define ifdebug if (DEBUG - 0)
+#define debugf(format, ...) ifdebug printf(format, ##__VA_ARGS__)
 
 enum err_code {
   CHI_ERR_GENERIC = 1000,
@@ -175,6 +178,7 @@ static inline void dlist_insert(dlist *head, dlist* elem)
 
 
 /// module GEOMETRY ///
+
 
 struct vec {
 	int32_t x;
@@ -291,6 +295,21 @@ static char* rec_print(char *dst, size_t len, rec r)
 	return dst + n; //_min(n, len);
 }
 
+static int clamp(int v, int lo, int hi)
+{
+	if (v < lo) return lo;
+	if (hi < v) return hi;
+	return v;
+}
+
+static void clamp_rec(rec *rec, vec window)
+{
+	rec->x0 = clamp(rec->x0, 0, window.x);
+	rec->y0 = clamp(rec->y0, 0, window.y);
+	rec->x1 = clamp(rec->x1, rec->x0, window.x);
+	rec->y1 = clamp(rec->y1, rec->y0, window.y);
+}
+
 
 /// module MEMORY ///
 
@@ -364,6 +383,8 @@ size_t copy_slice_slice(slice dst, slice src);
 size_t copy_slice_buffer(slice dst, buffer src);
 size_t copy_slice_buffer_full(slice dst, buffer src);
 
+void memset_i32(void* dst, int val, size_t len);
+void memset_u32(void* dst, unsigned int val, size_t len);
 
 // Pool: A fixed memory chunk devided in a set of constant size items.
 // - cannot be resized and will not move objects inside.
@@ -596,25 +617,30 @@ void framebuffer_print(char *buffer, size_t size, struct framebuffer *framebuffe
 // If a framebuffer is resized, all existing iterators are invalidated.
 // Initially the iterator is set one step before the first line, it is necessary to 
 
+// A line oriented iterator that can cover sub rectangles of a framebuffer.
+// The iterator is initially set just before the first line and must be pushed forward once.
+// The iterator can also be pushed forward up to once past the last line.
+// This behavior helps with writing loops.
 struct framebuffer_iter {
   char *text;
   int *fg;
   int *bg;
   size_t stride;
-  size_t line_length;
-  int line_max;
-  int line_current;
+  rec window;
+  int line;
 };
 
 struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, rec rec);
-// Adds a constant horizontal offset, dropping framebuffer slots on the left.
-void framebuffer_iter_offset(struct framebuffer_iter *iter, size_t offset);
-void framebuffer_iter_reset_first(struct framebuffer_iter *iter);
-void framebuffer_iter_reset_last(struct framebuffer_iter *iter);
-// Both these function returns true if the iterator was moved  can still be moved further in the same direction.
+void framebuffer_iter_reset_forward(struct framebuffer_iter *iter);
+void framebuffer_iter_reset_backward(struct framebuffer_iter *iter);
+// Move + or - n lines relative to the current position.
+void framebuffer_iter_move(struct framebuffer_iter *iter, int n);
+// Go to to the nth line relative to the iterator first line.
+void framebuffer_iter_goto(struct framebuffer_iter *iter, int n);
+// Both these function returns true if the iterator was moved forward or backward.
 int framebuffer_iter_next(struct framebuffer_iter *iter);
 int framebuffer_iter_prev(struct framebuffer_iter *iter);
-// These three functions return the number of slots into which bytes/colors were pushed.
+// These three functions return the number of framebuffer slots into which text or colors were pushed.
 size_t framebuffer_push_text(struct framebuffer_iter *iter, char *text, size_t size);
 size_t framebuffer_push_fg(struct framebuffer_iter *iter, int fg, size_t size);
 size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size);
