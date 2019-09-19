@@ -111,6 +111,27 @@ slice slice_while(slice *s, int fn(char))
 	return left;
 }
 
+slice slice_printf_proto(slice s, const char* format, int numargs, ...)
+{
+	size_t slen = slice_len(s);
+
+	va_list args;
+	va_start(args, numargs);
+	int string_size = vsnprintf(s.start, slen, format, args);
+	va_end(args);
+
+	string_size = max(0, string_size); // ignore errors
+	slen = min(slen, (size_t) string_size);
+	return slice_take(s, slen);
+}
+
+slice slice_strcpy(slice s, const char* c_string)
+{
+	size_t output_len = slice_len(s);
+	size_t input_len = strlcpy_polyfill(s.start, c_string, output_len);
+	return slice_take(s, min(output_len, input_len));
+}
+
 buffer b(void* memory, size_t len)
 {
 	return (buffer) {

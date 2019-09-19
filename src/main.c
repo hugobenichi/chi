@@ -1,5 +1,7 @@
 #include <chi.h>
 
+#define DEBUG 0
+
 struct editor {};
 
 void editor_init(struct editor *editor, vec term_size)
@@ -19,14 +21,13 @@ void editor_process_input(struct editor *editor, struct input input)
 
 // TODO: put the output in a buffer, not on stdout
 // TODO: turn this into table
-static void print_input(struct input input)
+struct slice input_to_string(slice slice, struct input input)
 {
-	char *s = "UNKNOWN";
-	char buffer[128] = {};
 	if (is_printable_key(input.code)) {
-		sprintf(buffer, "KEY:%c", input.code);
-		s = buffer;
+		return slice_printf(slice, "KEY:%c", input.code);
 	}
+
+	char *s = NULL;
 	switch (input.code) {
 	case CTRL_AT:			s = "CTRL_AT"; break;
 	case CTRL_A:			s = "CTRL_A"; break;
@@ -75,17 +76,22 @@ static void print_input(struct input input)
 	case INPUT_ERROR_CODE:          s = "ERROR"; break;
 	default:			break;
 	}
-	printf("%s", s);
-	switch (input.code) {
-	case INPUT_MOUSE_LEFT:
-	case INPUT_MOUSE_MIDDLE:
-	case INPUT_MOUSE_RIGHT:
-	case INPUT_MOUSE_RELEASE:
-		printf(": %i,%i", input.mouse_click.y, input.mouse_click.x);
-	default:
-		break;
+	if (s) {
+		return slice_strcpy(slice, s);
 	}
-	printf("\n\r");
+
+	switch (input.code) {
+	case INPUT_MOUSE_LEFT:          s = "MOUSE L"; break;
+	case INPUT_MOUSE_MIDDLE:        s = "MOUSE MID"; break;
+	case INPUT_MOUSE_RIGHT:         s = "MOUSE R"; break;
+	case INPUT_MOUSE_RELEASE:       s = "MOUSE RELEASE"; break;
+	default:			break;
+	}
+	if (s) {
+		return slice_printf(slice, "%s: %i,%i", s, input.mouse_click.y, input.mouse_click.x);
+	}
+
+	return slice_strcpy(slice, "INPUT:UNKNOWN");
 }
 
 struct err foo() { return error_because(EINVAL); }
@@ -138,10 +144,11 @@ int main(int argc, char **args) {
 	textbuffer_free(&tb);
 	if (0) return 0;
 
+	char buffer[128];
+	slice slice = s(buffer, buffer + 128);
 
 	for (;;) {
 		struct input input = term_get_input(STDIN_FILENO);
-		//print_input(input);
 		switch (input.code) {
 		case INPUT_RESIZE_CODE:
 			resize(&editor, &framebuffer);
@@ -158,11 +165,27 @@ int main(int argc, char **args) {
 			framebuffer_print(buffer, 256, &framebuffer);
 			puts(buffer);
 		}
+		struct slice input_descr = input_to_string(slice, input);
+
+vec term_size = term_get_size();
+#define DEBUG 0
+debugf("term_size: %d,%d\n", term_size.x, term_size.y);
+
+		framebuffer_put_text(&framebuffer, input_descr, v(1,1));
+
 		//framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
 		framebuffer_put_color_bg(&framebuffer, 18, r(v(3,3), v(25,25)));
 		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
 	}
 }
+
+/*
+ * WIP:
+ * strlcpy: verify
+ * slice_strcpy: does not write '0' correctly ??
+ * input_to_string: verify mouse event printing
+ * framebuffer_put_text: y offset is incorrect ??
+ */
 
 /* Next tasks
  *	- change print_input to emit to buffer, show it on screen

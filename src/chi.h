@@ -58,6 +58,23 @@ static size_t strnlen_polyfill(const char *str, size_t maxlen)
 }
 #endif
 
+#ifdef strlcpy
+#define strlcpy_polyfill strnlen
+#else
+static size_t strlcpy_polyfill(char *dst, const char *src , size_t size)
+{
+  size_t i = 0;
+  char *dst_end = dst + size;
+  while (*src) {
+    if (dst < dst_end) *dst++ = *src;
+    src++;
+    i++;
+  }
+  *dst = 0;
+  return i;
+}
+#endif
+
 // Print formatted error msg and exit.
 static inline void fatal(const char *format, ...)
 {
@@ -310,7 +327,6 @@ static void clamp_rec(rec *rec, vec window)
 	rec->y1 = clamp(rec->y1, rec->y0, window.y);
 }
 
-
 /// module MEMORY ///
 
 // Delimits a memory segment
@@ -348,6 +364,9 @@ slice slice_copy_bytes(slice dst, const char *src, size_t srclen);
 #define slice_copy_string(dst, string) slice_copy_bytes(dst, string, sizeof(string) - 1)
 #define slice_copy_value(dst, v) slice_copy(dst, slice_of_value(v))
 #define slice_copy_ref(dst, p) slice_copy(dst, slice_of_ref(p))
+slice slice_strcpy(slice s, const char* c_string);
+slice slice_printf_proto(slice s, const char* format, int numargs, ...);
+#define slice_printf(dst, format, ...) slice_printf_proto((slice), (format), NUMARGS(__VA_ARGS__), __VA_ARGS__)
 
 // Buffer: a chunk of memory with a known size and an internal cursor. Used mostly as a reference.
 struct buffer {
@@ -595,7 +614,7 @@ struct input term_get_input(int term_in_fd);      // return the next keyboard or
 // struct for managing a 2d grid of character "pixels" and draws them on the terminal
 struct framebuffer {
   vec window;                     // size of the display
-  size_t buffer_len;              // size of the various buffers
+  size_t buffer_len;              // size of the various buffers in number of cells
   char *text;                     // 2d buffer for storing text
   int *fg_colors;                 // 2d buffer for storing foreground colors
   int *bg_colors;                 // 2d buffer for storing background colors
@@ -605,6 +624,7 @@ struct framebuffer {
 void framebuffer_init(struct framebuffer *framebuffer, vec term_size);
 void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, vec cursor);
 void framebuffer_clear(struct framebuffer *framebuffer, rec rec);
+void framebuffer_put_text(struct framebuffer *framebuffer, slice s, vec vec);
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec);
 void framebuffer_put_color_bg(struct framebuffer *framebuffer, int bg, rec rec);
 

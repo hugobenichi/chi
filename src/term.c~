@@ -9,7 +9,7 @@
 #define TERM_NEWLINE		"\r\n"
 #define TERM_ESC		"\x1b"
 
-#define DEBUG 0
+#define DEBUG			0
 
 #define NUMCOLOR 256
 static const char* fg_color_control_string[NUMCOLOR];
@@ -241,7 +241,6 @@ void framebuffer_draw_to_term(int term_out_fd, struct framebuffer *framebuffer, 
 	int *fg = framebuffer->fg_colors;
 	int *bg = framebuffer->bg_colors;
 	int x = 0;
-int n_lines = 0;
 debugf("text,text_end: %p,%p\n", text, text_end);
 ifdebug for (int i = 0; i < 40; i++) { //window.x * window.y; i++) {
 	printf("%d:[%d,%d] ", i, *(framebuffer->fg_colors + i), *(framebuffer->bg_colors + i));
@@ -264,10 +263,8 @@ debugf("section color offset +x:%ld fg:%d bg:%d\n", (ssize_t)(section_start - te
 		if (x == window.x) {
 			buffer_append_cstring(&buffer, TERM_NEWLINE);
 			x = 0;
-			n_lines++;
 		}
 	}
-debugf("n_lines:%d\n", n_lines);
 
 	// put cursor: terminal cursor positions start at (1,1) instead of (0,0).
 	buffer_appendf(&buffer, TERM_ESC "[%d;%dH", cursor.x + 1, cursor.y + 1);
@@ -304,13 +301,9 @@ void fill_color_rec(int *color_array, vec window, int color, rec rec)
 
 void framebuffer_put_text(struct framebuffer *framebuffer, slice s, vec vec)
 {
-	if (vec.x < 0 || framebuffer->window.x <= vec.x) return;
-	if (vec.y < 0 || framebuffer->window.y <= vec.y) return;
-
-	size_t offset = vec.y * framebuffer->window.x + vec.x;
-	size_t last = offset + slice_len(s);
-	last = min(last, framebuffer->buffer_len);
-	memcpy(framebuffer->text + offset, s.start, last - offset);
+	if (framebuffer->window.x <= vec.x || framebuffer->window.y <= vec.y) {
+		return;
+	}
 }
 
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec)
@@ -329,7 +322,7 @@ vec term_get_size()
 	if (ioctl(1, TIOCGWINSZ, &w) < 0) {
 		perror("window_get_size: ioctl() failed");
 	}
-	return v(w.ws_col, w.ws_row);
+	return v(w.ws_row, w.ws_col);
 }
 
 static inline struct input input_for_error(int err) {
