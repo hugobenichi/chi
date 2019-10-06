@@ -120,7 +120,9 @@ slice slice_printf_proto(slice s, const char* format, int numargs, ...)
 	int string_size = vsnprintf(s.start, slen, format, args);
 	va_end(args);
 
-	string_size = max(0, string_size); // ignore errors
+	// if error, return empty string
+	if (string_size < 0)
+		string_size = 0;
 	slen = min(slen, (size_t) string_size);
 	return slice_take(s, slen);
 }

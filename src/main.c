@@ -24,6 +24,7 @@ void editor_process_input(struct editor *editor, struct input input)
 struct slice input_to_string(slice slice, struct input input)
 {
 	if (is_printable_key(input.code)) {
+printf("key:%c\n", input.code);
 		return slice_printf(slice, "KEY:%c", input.code);
 	}
 
@@ -160,11 +161,6 @@ int main(int argc, char **args) {
 			break;
 		}
 
-		if (0) {
-			char buffer[256] = {};
-			framebuffer_print(buffer, 256, &framebuffer);
-			puts(buffer);
-		}
 		struct slice input_descr = input_to_string(slice, input);
 
 vec term_size = term_get_size();
