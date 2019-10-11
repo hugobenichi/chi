@@ -278,7 +278,7 @@ static size_t file_path_maxlen = 1024;
 int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 {
 	assert(path);
-	size_t len = strnlen_polyfill(path, file_path_maxlen);
+	size_t len = strnlen(path, file_path_maxlen);
 	char* path_copy = malloc(len + 1);
 	memcpy(path_copy, path, len + 1);
 

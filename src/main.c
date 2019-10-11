@@ -24,7 +24,7 @@ void editor_process_input(struct editor *editor, struct input input)
 struct slice input_to_string(slice slice, struct input input)
 {
 	if (is_printable_key(input.code)) {
-printf("key:%c\n", input.code);
+//printf("key:%c\n", input.code);
 		return slice_printf(slice, "KEY:%c", input.code);
 	}
 
@@ -89,7 +89,8 @@ printf("key:%c\n", input.code);
 	default:			break;
 	}
 	if (s) {
-		return slice_printf(slice, "%s: %i,%i", s, input.mouse_click.y, input.mouse_click.x);
+		return slice_strcpy(slice, s);
+		//return slice_printf(slice, "%s: %i,%i", s, input.mouse_click.y, input.mouse_click.x);
 	}
 
 	return slice_strcpy(slice, "INPUT:UNKNOWN");
@@ -145,10 +146,12 @@ int main(int argc, char **args) {
 	textbuffer_free(&tb);
 	if (0) return 0;
 
-	char buffer[128];
+	char buffer[128] = "HELLO WOLD!";
 	slice slice = s(buffer, buffer + 128);
 
 	for (;;) {
+		framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
+
 		struct input input = term_get_input(STDIN_FILENO);
 		switch (input.code) {
 		case INPUT_RESIZE_CODE:
@@ -161,17 +164,16 @@ int main(int argc, char **args) {
 			break;
 		}
 
-		struct slice input_descr = input_to_string(slice, input);
-
 vec term_size = term_get_size();
 #define DEBUG 0
 debugf("term_size: %d,%d\n", term_size.x, term_size.y);
 
-		framebuffer_put_text(&framebuffer, input_descr, v(1,1));
+		struct slice input_descr = input_to_string(slice, input);
+		//struct slice input_descr = slice_take(slice, 11);
+		framebuffer_put_text(&framebuffer, input_descr, v(5,5));
 
-		//framebuffer_clear(&framebuffer, r(v(0,0), framebuffer.window));
 		framebuffer_put_color_bg(&framebuffer, 18, r(v(3,3), v(25,25)));
-		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(0,0));
+		framebuffer_draw_to_term(STDOUT_FILENO, &framebuffer, v(5,5));
 	}
 }
 
@@ -180,7 +182,7 @@ debugf("term_size: %d,%d\n", term_size.x, term_size.y);
  * strlcpy: verify
  * slice_strcpy: does not write '0' correctly ??
  * input_to_string: verify mouse event printing
- * framebuffer_put_text: y offset is incorrect ??
+ * framebuffer_clear: buggy, only clear first line ??
  */
 
 /* Next tasks

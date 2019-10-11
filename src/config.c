@@ -1,5 +1,7 @@
 #include <chi.h>
 
+#define DEBUG 0
+
 struct config CONFIG = {
   .debug_noterm = 0,
   .debug_config = 0,
@@ -51,7 +53,7 @@ void config_init()
 
 		char *k = slice_to_string(kv.key);
 		char *v = slice_to_string(kv.val);
-if (CONFIG.debug_config) {
+ifdebug {
 		if (slice_empty(kv.val)) {
 			printf("W: no val for key '%s'\n", k);
 		} else {

@@ -269,8 +269,11 @@ debugf("section color offset +x:%ld fg:%d bg:%d\n", (ssize_t)(section_start - te
 	}
 debugf("n_lines:%d\n", n_lines);
 
+	// Remove last TERM_NEWLINE
+	buffer.cursor -= sizeof(TERM_NEWLINE);
+
 	// put cursor: terminal cursor positions start at (1,1) instead of (0,0).
-	buffer_appendf(&buffer, TERM_ESC "[%d;%dH", cursor.x + 1, cursor.y + 1);
+	buffer_appendf(&buffer, TERM_ESC "[%d;%dH", cursor.y + 1, cursor.x + 1);
 	buffer_append_cstring(&buffer, TERM_ESC "[?25h");		// show cursor
 
 debugf("buffer cursor:%lu\n", buffer.cursor);
@@ -304,13 +307,22 @@ void fill_color_rec(int *color_array, vec window, int color, rec rec)
 
 void framebuffer_put_text(struct framebuffer *framebuffer, slice s, vec vec)
 {
-	if (vec.x < 0 || framebuffer->window.x <= vec.x) return;
+	int windowx = framebuffer->window.x;
+
+	if (windowx <= vec.x) return;
 	if (vec.y < 0 || framebuffer->window.y <= vec.y) return;
+	if (vec.x < 0) {
+		s = slice_drop(s, -vec.x);
+		vec.x = 0;
+	}
+
+	size_t maxlen = windowx - vec.x;
+	if (maxlen < slice_len(s)) {
+		s = slice_take(s, maxlen);
+	}
 
 	size_t offset = vec.y * framebuffer->window.x + vec.x;
-	size_t last = offset + slice_len(s);
-	last = min(last, framebuffer->buffer_len);
-	memcpy(framebuffer->text + offset, s.start, last - offset);
+	memcpy(framebuffer->text + offset, s.start, slice_len(s));
 }
 
 void framebuffer_put_color_fg(struct framebuffer *framebuffer, int fg, rec rec)

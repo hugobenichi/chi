@@ -15,7 +15,7 @@ int mapped_file_load(struct mapped_file *f, const char *path)
 	// TODO: return error if path is too long
 	size_t maxlen = _arraylen(f->name);
 	memset(f->name, 0, maxlen);
-	maxlen = strnlen_polyfill(path, maxlen - 1) + 1;
+	maxlen = strnlen(path, maxlen - 1) + 1;
 	memcpy(f->name, path, maxlen);
 
 	int fd = open(f->name, O_RDONLY);

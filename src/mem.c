@@ -53,14 +53,14 @@ size_t slice_copy(slice dst, const slice src)
 slice slice_drop(slice s, size_t n)
 {
 	n = min(n, slice_len(s));
-	s.start = s.start - n;
+	s.start = s.start + n;
 	return s;
 }
 
 slice slice_take(slice s, size_t n)
 {
 	n = min(n, slice_len(s));
-	s.stop = s.stop - n;
+	s.stop = s.start + n;
 	return s;
 }
 
@@ -130,7 +130,7 @@ slice slice_printf_proto(slice s, const char* format, int numargs, ...)
 slice slice_strcpy(slice s, const char* c_string)
 {
 	size_t output_len = slice_len(s);
-	size_t input_len = strlcpy_polyfill(s.start, c_string, output_len);
+	size_t input_len = strlcpy(s.start, c_string, output_len);
 	return slice_take(s, min(output_len, input_len));
 }
 

@@ -45,10 +45,8 @@ typedef uint64_t  u64;
 // Find statically the size of a __VA_ARGS__ list passed to a macro.
 #define NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
 
-#ifdef strnlen
-#define strnlen_polyfill strnlen
-#else
-static size_t strnlen_polyfill(const char *str, size_t maxlen)
+#ifndef strnlen
+static size_t strnlen(const char *str, size_t maxlen)
 {
   size_t i = 0;
   while (i < maxlen && str[i]) {
@@ -58,10 +56,8 @@ static size_t strnlen_polyfill(const char *str, size_t maxlen)
 }
 #endif
 
-#ifdef strlcpy
-#define strlcpy_polyfill strnlen
-#else
-static size_t strlcpy_polyfill(char *dst, const char *src , size_t size)
+#ifndef strlcpy
+static size_t strlcpy(char *dst, const char *src , size_t size)
 {
   size_t i = 0;
   char *dst_end = dst + size;
