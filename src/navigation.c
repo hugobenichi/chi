@@ -16,16 +16,15 @@ struct stringview {
   const char* c_str;
 };
 
-size_t copy_cstr(char** dst, const char* src, size_t maxn)
+void copy_cstr(char** dst, size_t* dstlen, const char* src, size_t maxn)
 {
-	size_t len = strnlen(src, maxn);
-	*dst = malloc(len);
-	memcpy(*dst, src, len);
-	if (len == maxn) {
-		(*dst)[len - 1] = '\0';
-		len--;
+	*dstlen = strnlen(src, maxn);
+	*dst = malloc(*dstlen);
+	memcpy(*dst, src, *dstlen);
+	if (*dstlen == maxn) {
+		(*dst)[*dstlen - 1] = '\0';
+		(*dstlen)--;
 	}
-	return len;
 }
 
 struct stringview string_to_view(const struct string* s)
@@ -37,17 +36,36 @@ struct stringview string_to_view(const struct string* s)
 }
 
 struct index_entry {
-	unsigned char dtype;
-	size_t namelen;
-	char* name;
+	char*		name;
+	size_t		namelen;
+	size_t		total_namelen;
+	int		parent;
+	unsigned char	d_type; // copied from struct dirent.d_type
 };
 
 struct index {
-	struct dirent* entries;
-	size_t size;
-	size_t capacity;
-	char	root[256];
+	struct index_entry*	entries;
+	size_t			size;
+	size_t			capacity;
 };
+
+void index_copy_complete_name(char* dst, struct index_entry* entries, int entry)
+{
+	size_t left = entries[entry].total_namelen;
+	dst[left] = '\0';
+	while (entry >= 0) {
+		struct index_entry e = entries[entry];
+		size_t offset = e.total_namelen - e.namelen;
+		memcpy(dst + offset, e.name, e.namelen);
+		left -= e.namelen;
+		entry = e.parent;
+		if (entry >= 0) {
+			dst[offset - 1] = '/';
+			left--;
+		}
+	}
+	assert(left == 0);
+}
 
 enum index_error {
 	index_error_none,
@@ -72,21 +90,39 @@ int array_ensure_capacity_proto(char** array, size_t stride, size_t* capacity, s
 	return *array != NULL;
 }
 
-enum index_error file_index_make(struct index* index)
+void index_free(struct index* index)
 {
-	DIR* d = opendir(index->root);
-	if (!d)
-		return index_error_invalid_root;
+	for (int i = 0; i < index->size; i++) {
+		free(index->entries[i].name);
+	}
+	free(index->entries);
+}
 
-	size_t size = 0;
+enum index_error index_make(struct index* index, const char* root)
+{
+	size_t size = 1;
 	size_t capacity = 10;
-	struct dirent* entries = malloc(sizeof(struct dirent) * capacity);
-	if (!entries) {
-		closedir(d);
+	struct index_entry* entries = malloc(sizeof(struct index_entry) * capacity);
+	if (!entries)
 		return index_error_enomem;
+
+	copy_cstr(&entries->name, &entries->namelen, root, 256);
+	// trim any extra '/'
+	while (entries->name[entries->namelen - 1] == '/')
+		entries->name[--entries->namelen] = '\0';
+	entries->total_namelen = entries->namelen;
+	entries->parent = -1;
+	entries->d_type = DT_DIR;
+
+	DIR* d = opendir(entries->name);
+	if (!d) {
+		free(entries->name);
+		free(entries);
+		return index_error_invalid_root;
 	}
 
-	size_t nextdir = 0;
+	char buffer[256];
+	size_t parent = 0;
 	while (d) {
 		errno = 0;
 		struct dirent* entry = readdir(d);
@@ -95,22 +131,41 @@ enum index_error file_index_make(struct index* index)
 			// find next directory and continue
 			closedir(d);
 			d = NULL;
-			for (; nextdir < size; nextdir++) {
-				if (entries[nextdir].d_type == DT_DIR) {
-					// FIXME need to link to parent !!!
-					d = opendir(entries[nextdir].d_name);
-					if (!d)
-						break;
+			parent++;
+			for (; parent < size; parent++) {
+				if (entries[parent].d_type != DT_DIR) {
+					continue;
+				}
+				// FIXME need to link to parent !!!
+				index_copy_complete_name(buffer, entries, parent);
+				puts("opening !");
+				puts(buffer);
+				d = opendir(buffer);
+				if (!d) {
+// RESUME: continue from here
+					puts("BREAK");
+					break;
 				}
 			}
 			continue;
 		}
 
-		printf("%s %u\n", entry->d_name, entry->d_reclen);
+		// skip '.' and '..'
+		const char* n = entry->d_name;
+		if (n[0] == '.' && n[1] == '\0')
+			continue;
+		if (n[0] == '.' && n[1] == '.' && n[2] == '\0')
+			continue;
 
 		if (!array_ensure_capacity(&entries, &capacity, size))
 			return index_error_enomem;
-		array_append(entries, &size, entry);
+
+		copy_cstr(&entries[size].name, &entries[size].namelen, entry->d_name, 256);
+		entries[size].total_namelen = entries[size].namelen + entries[parent].total_namelen;
+		entries[size].total_namelen += 1; // for '/'
+		entries[size].parent = parent;
+		entries[size].d_type = entries->d_type;
+		size++;
 	}
 
 	assert(!d);
@@ -129,26 +184,30 @@ int main(int argc, char* argv[])
 	puts(argv[1]);
 
 	struct index index;
-	strncpy(index.root, argv[1], sizeof(index.root));
-
-	enum index_error r = file_index_make(&index);
+	enum index_error r = index_make(&index, argv[1]);
 
 	switch (r) {
 		case index_error_invalid_root:
-		printf("invalid dir \"%s\"\n", index.root);
+		printf("invalid dir \"%s\"\n", argv[1]);
 		return -1;
 	case index_error_enomem:
 		printf("enomem\n");
 		return -1;
 	}
 
+	char buffer[256];
+	for (int i = 0; i < index.size; i++) {
+		struct index_entry e = index.entries[i];
+		index_copy_complete_name(buffer, index.entries, i);
+		//printf("%s %s %lu/%lu\n", buffer, e.name, e.namelen, e.total_namelen);
+		//printf("%s %lu/%lu\n", e.name, e.namelen, e.total_namelen);
+	}
+
+	puts("");
+	printf("rootlen: %lu\n", index.entries->namelen);
 	printf("size:%lu\n", index.size);
 	printf("capacity:%lu\n", index.capacity);
 	printf("entries:%p\n", index.entries);
-
-	for (int i = 0; i < index.size; i++) {
-		//puts(index.entries[i].d_name);
-	}
 
 	return 0;
 }
