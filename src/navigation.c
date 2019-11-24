@@ -22,9 +22,9 @@ void copy_cstr(char** dst, size_t* dstlen, const char* src, size_t maxn)
 	*dst = malloc(*dstlen);
 	memcpy(*dst, src, *dstlen);
 	if (*dstlen == maxn) {
-		(*dst)[*dstlen - 1] = '\0';
 		(*dstlen)--;
 	}
+	(*dst)[*dstlen] = '\0';
 }
 
 struct stringview string_to_view(const struct string* s)
@@ -136,14 +136,13 @@ enum index_error index_make(struct index* index, const char* root)
 				if (entries[parent].d_type != DT_DIR) {
 					continue;
 				}
-				// FIXME need to link to parent !!!
 				index_copy_complete_name(buffer, entries, parent);
 				puts("opening !");
 				puts(buffer);
 				d = opendir(buffer);
 				if (!d) {
-// RESUME: continue from here
-					puts("BREAK");
+					// FIXME: report errno ?
+					perror("opendir failed");
 					break;
 				}
 			}
@@ -181,8 +180,6 @@ int main(int argc, char* argv[])
 	if (argc < 2)
 		return 0;
 
-	puts(argv[1]);
-
 	struct index index;
 	enum index_error r = index_make(&index, argv[1]);
 
@@ -199,8 +196,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < index.size; i++) {
 		struct index_entry e = index.entries[i];
 		index_copy_complete_name(buffer, index.entries, i);
-		//printf("%s %s %lu/%lu\n", buffer, e.name, e.namelen, e.total_namelen);
-		//printf("%s %lu/%lu\n", e.name, e.namelen, e.total_namelen);
+		printf("%s %s %lu/%lu\n", buffer, e.name, e.namelen, e.total_namelen);
 	}
 
 	puts("");
