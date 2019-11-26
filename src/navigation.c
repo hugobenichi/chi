@@ -5,6 +5,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char* dtype_name(unsigned char dtype) {
+	switch (dtype) {
+	case DT_BLK:		return "DT_BLK";
+	case DT_CHR:		return "DT_CHR";
+	case DT_DIR:		return "DT_DIR";
+	case DT_FIFO:		return "DT_FIFO";
+	case DT_LNK:		return "DT_LNK";
+	case DT_REG:		return "DT_REG";
+	case DT_SOCK:		return "DT_SOCK";
+	case DT_UNKNOWN:
+	defalut:		return "DT_UNKNOWN";
+	}
+}
+
 struct string {
   int capacity;
   int length;
@@ -163,7 +177,7 @@ enum index_error index_make(struct index* index, const char* root)
 		entries[size].total_namelen = entries[size].namelen + entries[parent].total_namelen;
 		entries[size].total_namelen += 1; // for '/'
 		entries[size].parent = parent;
-		entries[size].d_type = entries->d_type;
+		entries[size].d_type = entry->d_type;
 		size++;
 	}
 
@@ -196,7 +210,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < index.size; i++) {
 		struct index_entry e = index.entries[i];
 		index_copy_complete_name(buffer, index.entries, i);
-		printf("%s %s %lu/%lu\n", buffer, e.name, e.namelen, e.total_namelen);
+		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
 	}
 
 	puts("");
