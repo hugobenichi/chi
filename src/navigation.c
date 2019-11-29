@@ -11,7 +11,7 @@
 #define if_debug if (DEBUG)
 #define debug(fmt, ...) if_debug printf(__LOC__ "#%s(): " fmt, __func__, ##__VA_ARGS__)
 
-#define DEBUG 1
+#define DEBUG 0
 
 void* debug_malloc(const char* loc, const char* func, size_t size) {
 	printf("%s %s: malloc(%lu)\n", loc, func, size);
@@ -24,17 +24,37 @@ void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
 		return realloc(ptr, size);
 	} else {
 		void* new_ptr = malloc(size);
-		if (new_ptr)
+		if (new_ptr && ptr) {
 			memcpy(new_ptr, ptr, size);
-		free(ptr);
+			free(ptr);
+		}
 		return new_ptr;
 	}
 }
 
+#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
 #if DEBUG
 #define malloc(size) debug_malloc(__LOC__, __func__, size)
-#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
 #endif
+
+//#define array_append(array, array_size, obj) memcpy(array + sizeof(array[0]) * *(array_size)++, obj, sizeof(array[0]))
+#define array_append(array, array_size, obj) array_append_proto((void*)array, array_size, (void*) obj, sizeof(array[0]))
+void array_append_proto(char* array, size_t* array_size, char* obj, size_t stride)
+{
+	memcpy(array + stride * (*array_size)++, obj, stride);
+}
+
+#define array_ensure_capacity(array, capacity, size) array_ensure_capacity_proto(((void*)array), sizeof(*((array)[0])), (capacity), (size))
+int array_ensure_capacity_proto(char** array, size_t stride, size_t* capacity, size_t size)
+{
+	if (size < *capacity)
+		return 1;
+	*capacity = *capacity * 8;
+	if (*capacity == 0)
+		*capacity = 16;
+	*array = realloc(*array, stride * *capacity);
+	return *array != NULL;
+}
 
 static const char* dtype_name(unsigned char dtype) {
 	switch (dtype) {
@@ -65,13 +85,12 @@ void copy_cstr(char** dst, size_t* dstlen, const char* src, size_t maxn)
 {
 	*dstlen = strnlen(src, maxn);
 	*dst = malloc(*dstlen);
-debug("copy_str(%p, %s)\n", *dst, src);
+  debug("copy_str(%p, %s)\n", *dst, src);
 	memcpy(*dst, src, *dstlen);
 	if (*dstlen == maxn) {
 		(*dstlen)--;
 	}
 	(*dst)[*dstlen] = '\0';
-debug("copy_str: done\n");
 }
 
 struct stringview string_to_view(const struct string* s)
@@ -96,6 +115,52 @@ struct index {
 	size_t			capacity;
 };
 
+enum match_type {
+	match_undefined,
+	match_anywhere,
+	match_anywhere_ignorecase,
+	match_from_start,
+};
+
+int is_match(const char* candidate, const char* pattern, enum match_type mt)
+{
+	switch (mt) {
+	case match_anywhere_ignorecase:
+		// undefined !!
+		//return strcasestr(candidate, pattern) != NULL;
+	case match_anywhere:
+		return strstr(candidate, pattern) != NULL;
+	case match_from_start:
+		return strncmp(candidate, pattern, strnlen(pattern, 64)) == 0;
+	case match_undefined:
+	default:
+		return 0;
+	}
+}
+
+int index_find_all_matches(int** out, size_t outcapacity, struct index* index, const char* pattern, enum match_type mt)
+{
+	assert(out);
+	int outsize = 0;
+	for (int i = 1 /* skip root */; i < index->size; i++) {
+		struct index_entry e = index->entries[i];
+		while (e.parent > 0 && !is_match(e.name, pattern, mt)) {
+			e = index->entries[e.parent];
+		}
+		if (e.parent < 0) {
+			continue;
+		}
+
+		if (!array_ensure_capacity(out, &outcapacity, outsize + 1)) {
+			// FIXME: return error properly !
+			return 0;
+		}
+		assert(*out);
+		(*out)[outsize++] = i;
+	}
+	return outsize;
+}
+
 void index_copy_complete_name(char* dst, struct index_entry* entries, int entry)
 {
 	size_t left = entries[entry].total_namelen;
@@ -119,23 +184,6 @@ enum index_error {
 	index_error_invalid_root,
 	index_error_enomem
 };
-
-//#define array_append(array, array_size, obj) memcpy(array + sizeof(array[0]) * *(array_size)++, obj, sizeof(array[0]))
-#define array_append(array, array_size, obj) array_append_proto((void*)array, array_size, (void*) obj, sizeof(array[0]))
-void array_append_proto(char* array, size_t* array_size, char* obj, size_t stride)
-{
-	memcpy(array + stride * (*array_size)++, obj, stride);
-}
-
-#define array_ensure_capacity(array, capacity, size) array_ensure_capacity_proto(((void*)array), sizeof(*((array)[0])), (capacity), (size))
-int array_ensure_capacity_proto(char** array, size_t stride, size_t* capacity, size_t size)
-{
-	if (size < *capacity)
-		return 1;
-	*capacity = *capacity * 4;
-	*array = realloc(*array, stride * *capacity);
-	return *array != NULL;
-}
 
 void index_free(struct index* index)
 {
@@ -262,11 +310,12 @@ int main(int argc, char* argv[])
 	}
 
 	char buffer[256];
-	for (int i = 0; i < index.size; i++) {
-		struct index_entry e = index.entries[i];
-		index_copy_complete_name(buffer, index.entries, i);
+//	for (int i = 0; i < index.size; i++) {
+//		struct index_entry e = index.entries[i];
+//		index_copy_complete_name(buffer, index.entries, i);
 //		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
-	}
+//		puts(buffer);
+//	}
 
 	puts("");
 	printf("root: %s\n", index.entries->name);
@@ -274,5 +323,14 @@ int main(int argc, char* argv[])
 	printf("capacity:%lu\n", index.capacity);
 	printf("entries:%p\n", index.entries);
 
-	return 0;
+	if (argc < 3)
+		return 0;
+
+	int* matches = NULL;
+	int n_matches = index_find_all_matches(&matches, 0, &index, argv[2], match_anywhere);
+	for (int i = 0; i < n_matches; i++) {
+		struct index_entry e = index.entries[i];
+		index_copy_complete_name(buffer, index.entries, i);
+		puts(buffer);
+	}
 }
