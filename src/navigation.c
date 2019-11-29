@@ -5,6 +5,37 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define __stringize1(x) #x
+#define __stringize2(x) __stringize1(x)
+#define __LOC__ __FILE__ ":" __stringize2(__LINE__)
+#define if_debug if (DEBUG)
+#define debug(fmt, ...) if_debug printf(__LOC__ "#%s(): " fmt, __func__, ##__VA_ARGS__)
+
+#define DEBUG 1
+
+void* debug_malloc(const char* loc, const char* func, size_t size) {
+	printf("%s %s: malloc(%lu)\n", loc, func, size);
+	return malloc(size);
+}
+
+void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
+	printf("%s %s: realloc(%p, %lu)\n", loc, func, ptr, size);
+	if (1) {
+		return realloc(ptr, size);
+	} else {
+		void* new_ptr = malloc(size);
+		if (new_ptr)
+			memcpy(new_ptr, ptr, size);
+		free(ptr);
+		return new_ptr;
+	}
+}
+
+#if DEBUG
+#define malloc(size) debug_malloc(__LOC__, __func__, size)
+#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
+#endif
+
 static const char* dtype_name(unsigned char dtype) {
 	switch (dtype) {
 	case DT_BLK:		return "DT_BLK";
@@ -34,11 +65,13 @@ void copy_cstr(char** dst, size_t* dstlen, const char* src, size_t maxn)
 {
 	*dstlen = strnlen(src, maxn);
 	*dst = malloc(*dstlen);
+debug("copy_str(%p, %s)\n", *dst, src);
 	memcpy(*dst, src, *dstlen);
 	if (*dstlen == maxn) {
 		(*dstlen)--;
 	}
 	(*dst)[*dstlen] = '\0';
+debug("copy_str: done\n");
 }
 
 struct stringview string_to_view(const struct string* s)
@@ -99,7 +132,7 @@ int array_ensure_capacity_proto(char** array, size_t stride, size_t* capacity, s
 {
 	if (size < *capacity)
 		return 1;
-	*capacity = *capacity * 2;
+	*capacity = *capacity * 4;
 	*array = realloc(*array, stride * *capacity);
 	return *array != NULL;
 }
@@ -115,7 +148,7 @@ void index_free(struct index* index)
 enum index_error index_make(struct index* index, const char* root)
 {
 	size_t size = 1;
-	size_t capacity = 10;
+	size_t capacity = 1 << 4;
 	struct index_entry* entries = malloc(sizeof(struct index_entry) * capacity);
 	if (!entries)
 		return index_error_enomem;
@@ -136,28 +169,35 @@ enum index_error index_make(struct index* index, const char* root)
 	}
 
 	char buffer[256];
+	strcpy(buffer, entries->name);
 	size_t parent = 0;
+
 	while (d) {
+  debug("readdir %s\n", buffer);
 		errno = 0;
 		struct dirent* entry = readdir(d);
+
 		if (!entry) {
-			// FIXME: check errno to distinguis from end of stream
-			// find next directory and continue
+			if (errno != 0) {
+				// FIXME: report errno ?
+				perror("readdir failed");
+				continue;
+			}
+
+  debug("closing %s\n", buffer);
 			closedir(d);
 			d = NULL;
-			parent++;
-			for (; parent < size; parent++) {
+			while (!d && parent < size) {
+				parent++;
 				if (entries[parent].d_type != DT_DIR) {
 					continue;
 				}
 				index_copy_complete_name(buffer, entries, parent);
-				puts("opening !");
-				puts(buffer);
+  debug("opening %s\n", buffer);
 				d = opendir(buffer);
 				if (!d) {
 					// FIXME: report errno ?
 					perror("opendir failed");
-					break;
 				}
 			}
 			continue;
@@ -169,6 +209,21 @@ enum index_error index_make(struct index* index, const char* root)
 			continue;
 		if (n[0] == '.' && n[1] == '.' && n[2] == '\0')
 			continue;
+
+		// Only keep DT_DIR, DT_REG, and DT_LNK
+		switch (entry->d_type) {
+			case DT_BLK:
+			case DT_CHR:
+			case DT_FIFO:
+			case DT_SOCK:
+			case DT_UNKNOWN:
+  debug("discarding unwanted UNKNOWN\n");
+				continue;
+			default:
+				break;
+		}
+
+  debug("%s: read entry %s\n", buffer, entry->d_name);
 
 		if (!array_ensure_capacity(&entries, &capacity, size))
 			return index_error_enomem;
@@ -210,11 +265,11 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < index.size; i++) {
 		struct index_entry e = index.entries[i];
 		index_copy_complete_name(buffer, index.entries, i);
-		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
+//		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
 	}
 
 	puts("");
-	printf("rootlen: %lu\n", index.entries->namelen);
+	printf("root: %s\n", index.entries->name);
 	printf("size:%lu\n", index.size);
 	printf("capacity:%lu\n", index.capacity);
 	printf("entries:%p\n", index.entries);
