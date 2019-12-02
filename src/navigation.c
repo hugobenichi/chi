@@ -142,15 +142,15 @@ int index_find_all_matches(int** out, size_t outcapacity, struct index* index, c
 {
 	assert(out);
 	int outsize = 0;
+	struct index_entry* entries = index->entries;
 	for (int i = 1 /* skip root */; i < index->size; i++) {
-		struct index_entry e = index->entries[i];
-		while (e.parent > 0 && !is_match(e.name, pattern, mt)) {
-			e = index->entries[e.parent];
+		int j = i;
+		while (0 < j && !is_match(entries[j].name, pattern, mt)) {
+			j = entries[j].parent;
 		}
-		if (e.parent < 0) {
+		if (j <= 0) {
 			continue;
 		}
-
 		if (!array_ensure_capacity(out, &outcapacity, outsize + 1)) {
 			// FIXME: return error properly !
 			return 0;
@@ -328,9 +328,9 @@ int main(int argc, char* argv[])
 
 	int* matches = NULL;
 	int n_matches = index_find_all_matches(&matches, 0, &index, argv[2], match_anywhere);
+	printf("found %d matches\n", n_matches);
 	for (int i = 0; i < n_matches; i++) {
-		struct index_entry e = index.entries[i];
-		index_copy_complete_name(buffer, index.entries, i);
+		index_copy_complete_name(buffer, index.entries, matches[i]);
 		puts(buffer);
 	}
 }
