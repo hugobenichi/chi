@@ -115,6 +115,11 @@ struct index {
 	size_t			capacity;
 };
 
+const char* index_root(struct index index)
+{
+	return index.entries->name;
+}
+
 enum match_type {
 	match_undefined,
 	match_anywhere,
@@ -292,13 +297,60 @@ enum index_error index_make(struct index* index, const char* root)
 	return index_error_none;
 }
 
+struct navigator {
+	struct index_list {
+		struct index_list* tail;
+		struct index head;
+	} *index_list;
+	// TODO: currently opened files
+};
+
+enum index_error navigator_addindex(struct navigator* navigator, const char* root)
+{
+	struct index_list **index_list = &navigator->index_list;
+	size_t rootlen = strnlen(root, 64);
+	while (*index_list) {
+		if (strncmp(index_root((*index_list)->head), root, rootlen) == 0) {
+			break;
+		}
+		index_list = &(*index_list)->tail;
+	}
+
+	if (*index_list) {
+		index_free(&(*index_list)->head);
+	} else {
+		*index_list = malloc(sizeof(struct index_list));
+		if (!*index_list)
+			return index_error_enomem;
+		(*index_list)->tail = NULL;
+	}
+
+	enum index_error e = index_make(&(*index_list)->head, root);
+	// FIXME: if error, dealloc e and drop it ?
+	return e;
+}
+
+void navigator_free(struct navigator* navigator)
+{
+	struct index_list* index_list = navigator->index_list;
+	while (index_list) {
+		index_free(&index_list->head);
+		struct index_list* current = index_list;
+		index_list = index_list->tail;
+		free(current);
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	if (argc < 2)
 		return 0;
 
+	struct navigator navigator;
+	memset(&navigator, 0, sizeof(navigator));
 	struct index index;
-	enum index_error r = index_make(&index, argv[1]);
+	//enum index_error r = index_make(&index, argv[1]);
+	enum index_error r = navigator_addindex(&navigator, argv[1]);
 
 	switch (r) {
 		case index_error_invalid_root:
@@ -309,6 +361,8 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	index = navigator.index_list->head;
+
 	char buffer[256];
 //	for (int i = 0; i < index.size; i++) {
 //		struct index_entry e = index.entries[i];
@@ -318,7 +372,7 @@ int main(int argc, char* argv[])
 //	}
 
 	puts("");
-	printf("root: %s\n", index.entries->name);
+	printf("root: %s\n", index_root(index));
 	printf("size:%lu\n", index.size);
 	printf("capacity:%lu\n", index.capacity);
 	printf("entries:%p\n", index.entries);
