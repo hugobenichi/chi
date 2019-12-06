@@ -32,8 +32,8 @@ void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
 	}
 }
 
-#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
 #if DEBUG
+#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
 #define malloc(size) debug_malloc(__LOC__, __func__, size)
 #endif
 
@@ -195,6 +195,25 @@ void index_free(struct index* index)
 	free(index->entries);
 }
 
+size_t find_next_dir(struct index_entry* entries, DIR** d, size_t parent, size_t size)
+{
+	char buffer[256];
+	while (!*d && parent < size) {
+		parent++;
+		if (entries[parent].d_type != DT_DIR) {
+			continue;
+		}
+		index_copy_complete_name(buffer, entries, parent);
+  debug("opening %s\n", buffer);
+		*d = opendir(buffer);
+		if (!*d) {
+			// FIXME: report errno ?
+			perror("opendir failed");
+		}
+	}
+	return parent;
+}
+
 enum index_error index_make(struct index* index, const char* root)
 {
 	size_t size = 1;
@@ -237,28 +256,22 @@ enum index_error index_make(struct index* index, const char* root)
   debug("closing %s\n", buffer);
 			closedir(d);
 			d = NULL;
-			while (!d && parent < size) {
-				parent++;
-				if (entries[parent].d_type != DT_DIR) {
-					continue;
-				}
-				index_copy_complete_name(buffer, entries, parent);
-  debug("opening %s\n", buffer);
-				d = opendir(buffer);
-				if (!d) {
-					// FIXME: report errno ?
-					perror("opendir failed");
-				}
-			}
+			parent = find_next_dir(entries, &d, parent, size);
+//			while (!d && parent < size) {
+//				parent++;
+//				if (entries[parent].d_type != DT_DIR) {
+//					continue;
+//				}
+//				index_copy_complete_name(buffer, entries, parent);
+//  debug("opening %s\n", buffer);
+//				d = opendir(buffer);
+//				if (!d) {
+//					// FIXME: report errno ?
+//					perror("opendir failed");
+//				}
+//			}
 			continue;
 		}
-
-		// skip '.' and '..'
-		const char* n = entry->d_name;
-		if (n[0] == '.' && n[1] == '\0')
-			continue;
-		if (n[0] == '.' && n[1] == '.' && n[2] == '\0')
-			continue;
 
 		// Only keep DT_DIR, DT_REG, and DT_LNK
 		switch (entry->d_type) {
@@ -272,6 +285,15 @@ enum index_error index_make(struct index* index, const char* root)
 			default:
 				break;
 		}
+
+		// skip '.' and '..'
+		const char* n = entry->d_name;
+		if (strcmp(entry->d_name, ".") == 0)
+		//if (n[0] == '.' && n[1] == '\0')
+			continue;
+		if (strcmp(entry->d_name, "..") == 0)
+		//if (n[0] == '.' && n[1] == '.' && n[2] == '\0')
+			continue;
 
   debug("%s: read entry %s\n", buffer, entry->d_name);
 
@@ -338,7 +360,7 @@ void navigator_free(struct navigator* navigator)
 	}
 }
 
-int main(int argc, char* argv[])
+int test(int argc, char** argv)
 {
 	if (argc < 2)
 		return 0;
@@ -360,31 +382,35 @@ int main(int argc, char* argv[])
 
 	index = navigator.index_list->head;
 
-	char buffer[256];
-//	for (int i = 0; i < index.size; i++) {
-//		struct index_entry e = index.entries[i];
-//		index_copy_complete_name(buffer, index.entries, i);
-//		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
-//		puts(buffer);
-//	}
-
-	puts("");
-	printf("root: %s\n", index_root(index));
-	printf("size:%lu\n", index.size);
-	printf("capacity:%lu\n", index.capacity);
-	printf("entries:%p\n", index.entries);
+//	puts("");
+//	printf("root: %s\n", index_root(index));
+//	printf("size:%lu\n", index.size);
+//	printf("capacity:%lu\n", index.capacity);
+//	printf("entries:%p\n", index.entries);
 
 	if (argc < 3)
-		return 0;
+		goto exit;
 
 	int* matches = NULL;
 	int n_matches = index_find_all_matches(&matches, 0, &index, argv[2], match_anywhere);
 	printf("found %d matches\n", n_matches);
+	char buffer[256];
 	for (int i = 0; i < n_matches; i++) {
 		index_copy_complete_name(buffer, index.entries, matches[i]);
 		puts(buffer);
+//		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
 	}
-
 	free(matches);
+
+	exit:
 	navigator_free(&navigator);
+	return 0;
+}
+
+int main(int argc, char* argv[])
+{
+	for (int i = 0; i < 10; i++) {
+		test(argc, argv);
+	}
+	return 0;
 }

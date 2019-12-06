@@ -3,4 +3,8 @@
 make 77>&1
 #make run 77>&1
 
-gcc -o1 -fsanitize=address -fno-omit-frame-pointer -g -o build/nav src/navigation.c -I./src
+flags="-o1"
+flags=" -g -p -no-pie"
+#flags=$flags" -fsanitize=address -fno-omit-frame-pointer"
+
+gcc $flags -o build/nav src/navigation.c -I./src
