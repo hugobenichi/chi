@@ -84,12 +84,9 @@ struct stringview {
 void copy_cstr(char** dst, size_t* dstlen, const char* src, size_t maxn)
 {
 	*dstlen = strnlen(src, maxn);
-	*dst = malloc(*dstlen);
+	*dst = malloc(*dstlen + 1 /* null byte */);
   debug("copy_str(%p, %s)\n", *dst, src);
 	memcpy(*dst, src, *dstlen);
-	if (*dstlen == maxn) {
-		(*dstlen)--;
-	}
 	(*dst)[*dstlen] = '\0';
 }
 
@@ -387,4 +384,7 @@ int main(int argc, char* argv[])
 		index_copy_complete_name(buffer, index.entries, matches[i]);
 		puts(buffer);
 	}
+
+	free(matches);
+	navigator_free(&navigator);
 }
