@@ -1,6 +1,7 @@
-#include <errno.h>
 #include <assert.h>
 #include <dirent.h>
+#include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,6 +38,17 @@ void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
 #define malloc(size) debug_malloc(__LOC__, __func__, size)
 #endif
 
+size_t array_find_capacity(size_t capacity, size_t size)
+{
+	static unsigned int capacity_scaling = 4;
+	static unsigned int min_capacity = 16;
+	if (capacity == 0)
+		capacity = min_capacity;
+	while (capacity <= size)
+		capacity = capacity * capacity_scaling;
+	return capacity;
+}
+
 //#define array_append(array, array_size, obj) memcpy(array + sizeof(array[0]) * *(array_size)++, obj, sizeof(array[0]))
 #define array_append(array, array_size, obj) array_append_proto((void*)array, array_size, (void*) obj, sizeof(array[0]))
 void array_append_proto(char* array, size_t* array_size, char* obj, size_t stride)
@@ -47,41 +59,59 @@ void array_append_proto(char* array, size_t* array_size, char* obj, size_t strid
 #define array_ensure_capacity(array, capacity, size) array_ensure_capacity_proto(((void*)array), sizeof(*((array)[0])), (capacity), (size))
 int array_ensure_capacity_proto(char** array, size_t stride, size_t* capacity, size_t size)
 {
-	static size_t min_capacity = 16;
-	static unsigned int capacity_scaling = 4;
-	size_t c = *capacity;
-	if (size < c)
+	size_t c = array_find_capacity(*capacity, size);
+	if (c == *capacity)
 		return 1;
-	if (c == 0)
-		c = min_capacity;
-	while (c < size)
-		c = c * capacity_scaling;
 	*array = realloc(*array, stride * c);
 	*capacity = c;
-  debug("array_ensure_capacity_proto: (size req: %lu) writing %lu at %p\n", size, c, capacity);
 	return *array != NULL;
 }
 
 struct array {
 	size_t size;
 	size_t capacity;
-	char* data;
+	char data[];
 };
 
 static struct array empty_array = {
 	.size = 0,
 	.capacity = 0,
-	.data = NULL,
 };
 
-int array_pushback_proto(struct array* array, char* obj, size_t obj_size)
+struct array* array_base(void* array)
 {
-	int r = array_ensure_capacity_proto(&array->data, obj_size, &array->capacity, array->size);
-	if (r)
-		array_append_proto(array->data, &array->size, obj, obj_size);
-	return r;
+	return (struct array*) ((char*) array - offsetof(struct array, data));
 }
-#define array_pushback(array, obj) array_pushback_proto(array, (void*) obj, sizeof(*obj))
+
+#define array_size(array)     (array_base(array)->size)
+#define array_capacity(array) (array_base(array)->capacity)
+#define array_free(array)     free(array_base(array))
+
+int array_pushback_proto(void** array_ptr, char* obj, size_t obj_size)
+{
+	assert(array_ptr);
+	struct array* array = (*array_ptr) ? array_base(*array_ptr) : NULL;
+	size_t s = array ? array->size : 0;
+	size_t c1 = array ? array->capacity : 0;
+	size_t c2 = array_find_capacity(c1, s);
+
+	if (c1 != c2) {
+  debug("realloc array of size %lu: %lu -> %lu\n", s, c1, c2);
+		array = realloc(array, c2 * obj_size + sizeof(struct array));
+		if (!array)
+			return 0;
+		array->size = s; /* needed for initially empty array */
+		array->capacity = c2;
+		*array_ptr = array->data;
+	}
+
+  debug("append value %u at index %lu\n", *((int*)obj), s);
+	memcpy(array->data + obj_size * s, obj, obj_size);
+	array->size++;
+	return 1;
+}
+// TODO: how to assert types ? Use cpp templates ? Use typeof ? Use static_assert ?
+#define array_pushback(array, obj) array_pushback_proto((void*)array, (void*)obj, sizeof(*obj))
 
 static const char* dtype_name(unsigned char dtype) {
 	switch (dtype) {
@@ -234,8 +264,8 @@ enum index_error index_make(struct index* index, const char* root)
 		return index_error_enomem;
 
 	// FIXME be sure to unalloc this in all return paths !
-	size_t dir_entries_size = 0;
-	size_t dir_entries_capacity = 0;
+//	size_t dir_entries_size = 0;
+//	size_t dir_entries_capacity = 0;
 	int* dir_entries = NULL;
 	int next_dir = 0;
 
@@ -273,11 +303,12 @@ enum index_error index_make(struct index* index, const char* root)
 			closedir(d);
 			d = NULL;
 
-			assert(next_dir <= dir_entries_size);
-			if (next_dir == dir_entries_size) {
+			assert(next_dir <= array_size(dir_entries));
+			if (next_dir == array_size(dir_entries)) {
 				goto done;
 			}
 			parent = dir_entries[next_dir++];
+			assert(parent < size);
 			index_copy_complete_name(buffer, entries, parent);
   debug("opening %s\n", buffer);
 			d = opendir(buffer);
@@ -319,13 +350,17 @@ enum index_error index_make(struct index* index, const char* root)
 		entries[size].d_type = entry->d_type;
 
 		if (entry->d_type == DT_DIR) {
-			dir_entries_size++;
-			if (!array_ensure_capacity(&dir_entries, &dir_entries_capacity, dir_entries_size)) {
+//			dir_entries_size++;
+//			if (!array_ensure_capacity(&dir_entries, &dir_entries_capacity, dir_entries_size)) {
+//				result = index_error_enomem;
+//				goto error;
+//			}
+//  debug("%s: adding DT_DIR entry %s\n", buffer, entry->d_name);
+//			dir_entries[dir_entries_size - 1] =  size;
+			if (!array_pushback(&dir_entries, (int*) &size)) {
 				result = index_error_enomem;
 				goto error;
 			}
-  debug("%s: adding DT_DIR entry %s\n", buffer, entry->d_name);
-			dir_entries[dir_entries_size - 1] =  size;
 		}
 
 		size++;
@@ -336,7 +371,7 @@ error:
 	free(entries);
 done:
 	if (dir_entries)
-		free(dir_entries);
+		array_free(dir_entries);
 	if (d)
 		closedir(d);
 
@@ -442,7 +477,7 @@ int test(int argc, char** argv)
 
 int main(int argc, char* argv[])
 {
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 1; i++) {
 		test(argc, argv);
 	}
 	return 0;
