@@ -123,7 +123,7 @@ static const char* dtype_name(unsigned char dtype) {
 	case DT_REG:		return "DT_REG";
 	case DT_SOCK:		return "DT_SOCK";
 	case DT_UNKNOWN:
-	defalut:		return "DT_UNKNOWN";
+	default:		return "DT_UNKNOWN";
 	}
 }
 
@@ -437,12 +437,16 @@ int test(int argc, char** argv)
 	enum index_error r = navigator_addindex(&navigator, argv[1]);
 
 	switch (r) {
-		case index_error_invalid_root:
+	case index_error_none:
+		break;
+	case index_error_invalid_root:
 		printf("invalid dir \"%s\"\n", argv[1]);
 		return -1;
 	case index_error_enomem:
-		printf("enomem\n");
+		puts("enomem");
 		return -1;
+	default:
+		puts("unknown error");
 	}
 
 	index = navigator.index_list->head;
