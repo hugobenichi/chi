@@ -38,15 +38,15 @@ void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
 #define malloc(size) debug_malloc(__LOC__, __func__, size)
 #endif
 
-size_t array_find_capacity(size_t capacity, size_t size)
+size_t array_find_capacity(size_t current, size_t needed)
 {
 	static unsigned int capacity_scaling = 4;
-	static unsigned int min_capacity = 16;
-	if (capacity == 0)
-		capacity = min_capacity;
-	while (capacity <= size)
-		capacity = capacity * capacity_scaling;
-	return capacity;
+	static unsigned int capacity_min = 16;
+	if (current == 0)
+		current = capacity_min;
+	while (current <= needed)
+		current = current * capacity_scaling;
+	return current;
 }
 
 //#define array_append(array, array_size, obj) memcpy(array + sizeof(array[0]) * *(array_size)++, obj, sizeof(array[0]))
@@ -88,7 +88,21 @@ struct dynarray {
 	{
 		return elements[i];
 	}
+
+	static size_t bytesize(size_t capacity)
+	{
+		return sizeof(dynarray<T>) + capacity * sizeof(T);
+	}
 };
+
+template <typename T>
+dynarray<T>* array_make(dynarray<T>* array, size_t capacity)
+{
+	array = (dynarray<T>*) realloc(array, sizeof(dynarray<T>) + capacity * sizeof(T));
+	assert(array);
+	array->capacity = capacity;
+	return array;
+}
 
 template <typename T>
 struct slice {
@@ -102,6 +116,13 @@ struct slice {
 		return array->elements[offset + i];
 	}
 
+	T& last()
+	{
+		assert(size > 0);
+		assert(offset + size - 1 < array->capacity);
+		return array->elements[offset + size - 1];
+	}
+
 	bool is_empty()
 	{
 		return size == 0;
@@ -111,6 +132,24 @@ struct slice {
 	{
 		if (array)
 			free(array);
+	}
+
+	slice<T> ensure_capacity(size_t capacity)
+	{
+		slice<T> s = *this;
+		size_t current = s.array ? s.array->capacity : 0;
+		if (current < capacity) {
+			capacity = array_find_capacity(current, capacity);
+			s.array = array_make(s.array, capacity);
+		}
+		return s;
+	}
+
+	static slice<T> reserve(size_t capacity)
+	{
+		slice<T> s = {};
+		s.array = array_make<T>(NULL, capacity);
+		return s;
 	}
 };
 
@@ -123,6 +162,7 @@ void append(struct dynarray<T>** a_ptr, const T& t)
 		size_t new_size = a ? a->size : 0;
 		size_t new_capacity = a ? a->capacity * 2 : 16;
 		a = (struct dynarray<T>*) realloc(a, sizeof(struct dynarray<T>) + new_capacity * sizeof(T));
+		assert(a);
 		a->capacity = new_capacity;
 		a->size = new_size;
 		*a_ptr = a;
@@ -233,14 +273,15 @@ struct index_entry {
 };
 
 struct index {
-	struct index_entry*	entries;
-	size_t			size;
-	size_t			capacity;
+	slice<struct index_entry> entries;
+
+	size_t size() { return entries.size; }
+	struct index_entry& operator[](int i) { return entries[i]; }
 };
 
 const char* index_root(struct index index)
 {
-	return index.entries->name;
+	return index.entries[0].name;
 }
 
 enum match_type {
@@ -266,14 +307,13 @@ int is_match(const char* candidate, const char* pattern, enum match_type mt)
 	}
 }
 
-slice<int> index_find_all_matches(struct index* index, const char* pattern, enum match_type mt)
+slice<int> index_find_all_matches(struct index index, const char* pattern, enum match_type mt)
 {
 	slice<int> out = {};
-	struct index_entry* entries = index->entries;
-	for (int i = 1 /* skip root */; i < index->size; i++) {
+	for (int i = 1 /* skip root */; i < index.size(); i++) {
 		int j = i;
-		while (0 < j && !is_match(entries[j].name, pattern, mt)) {
-			j = entries[j].parent;
+		while (0 < j && !is_match(index[j].name, pattern, mt)) {
+			j = index[j].parent;
 		}
 		if (j <= 0) {
 			continue;
@@ -283,7 +323,7 @@ slice<int> index_find_all_matches(struct index* index, const char* pattern, enum
 	return out;
 }
 
-void index_copy_complete_name(char* dst, struct index_entry* entries, int entry)
+void index_copy_complete_name(char* dst, slice<struct index_entry> entries, int entry)
 {
 	size_t left = entries[entry].total_namelen;
 	dst[left] = '\0';
@@ -307,47 +347,45 @@ enum index_error {
 	index_error_enomem
 };
 
-void index_free(struct index* index)
+void index_free(struct index index)
 {
-	for (int i = 0; i < index->size; i++) {
-		free(index->entries[i].name);
+	for (int i = 0; i < index.size(); i++) {
+		free(index.entries[i].name);
 	}
-	free(index->entries);
+	index.entries.dealloc();
 }
 
-enum index_error index_make(struct index* index, const char* root)
+enum index_error index_make(struct index* out_index, const char* root)
 {
-	enum index_error result = index_error_none;
+	DIR* d = opendir(root);
+	if (!d) {
+		return index_error_invalid_root;
+	}
 
-	size_t size = 1; /* first slot used for root */
-	size_t capacity = 0;
-	struct index_entry* entries = NULL;
-	if (!array_ensure_capacity(&entries, &capacity, size))
-		return index_error_enomem;
+	char* root_name;
+	size_t root_namelen;
+	cstrcpy(&root_name, &root_namelen, root, 256);
+	// trim any extra '/'
+	while (root_name[root_namelen] == '/')
+		root_name[--root_namelen] = '\0';
+
+	debug("root_namelen:%lu\n", root_namelen);
+
+	slice<struct index_entry> entries = slice<struct index_entry>::reserve(10);
+	// first slot used for root
+	entries.size = 1;
+	entries[0].name = root_name;
+	entries[0].namelen = root_namelen;
+	entries[0].total_namelen = root_namelen;
+	entries[0].parent = -1;
+	entries[0].d_type = DT_DIR;
 
 	// FIXME be sure to unalloc this in all return paths !
-	//int* dir_entries = NULL;
 	slice<size_t> dir_entries = {};
 	int next_dir = 0;
 
-	cstrcpy(&entries->name, &entries->namelen, root, 256);
-	// trim any extra '/'
-	while (entries->name[entries->namelen - 1] == '/')
-		entries->name[--entries->namelen] = '\0';
-	entries->total_namelen = entries->namelen;
-	entries->parent = -1;
-	entries->d_type = DT_DIR;
-
-	DIR* d = opendir(entries->name);
-	if (!d) {
-		result = index_error_invalid_root;
-		return result;
-		// FIXME: free resources !
-		// goto error;
-	}
-
 	char buffer[256];
-	strcpy(buffer, entries->name);
+	strcpy(buffer, root_name);
 	size_t parent = 0;
 
 	while (d) {
@@ -366,23 +404,23 @@ enum index_error index_make(struct index* index, const char* root)
 			closedir(d);
 			d = NULL;
 
-//			assert(next_dir <= array_size(dir_entries));
-//			if (next_dir == array_size(dir_entries)) {
 			if (next_dir == dir_entries.size) {
 				goto done;
 			}
 
 			parent = dir_entries[next_dir++];
-			//parent = dir_entries->get(next_dir++);
-			//parent = dir_entries->operator[](next_dir++);
+			assert(0 < parent);
+			assert(parent < entries.size);
 
-			assert(parent < size);
+  debug("going to next dir #%lu\n", parent);
 			index_copy_complete_name(buffer, entries, parent);
   debug("opening %s\n", buffer);
 			d = opendir(buffer);
 			if (!d) {
 				// Do not hard fail and try the next
-				perror("opendir failed");
+				char buffer2[256];
+				snprintf(buffer2, 256, "opendir(%s) failed", buffer);
+				perror(buffer2);
 			}
 			continue;
 		}
@@ -404,50 +442,35 @@ enum index_error index_make(struct index* index, const char* root)
 		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
 			continue;
 
-  debug("%s: pushing entry #%lu %s\n", buffer, size, entry->d_name);
-
-		if (!array_ensure_capacity(&entries, &capacity, size + 1)) {
-			result = index_error_enomem;
-			return result;
-			// FIXME: free resources !
-			//goto error;
-		}
-
-		cstrcpy(&entries[size].name, &entries[size].namelen, entry->d_name, 128);
-		entries[size].total_namelen = entries[size].namelen + entries[parent].total_namelen;
-		entries[size].total_namelen += 1; // for '/'
-		entries[size].parent = parent;
-		entries[size].d_type = entry->d_type;
+  debug("%s: pushing entry #%lu %s\n", buffer, entries.size, entry->d_name);
 
 		if (entry->d_type == DT_DIR) {
-			dir_entries = append(dir_entries, size);
-			//append(&dir_entries, size);
-
-//			if (!array_pushback(&dir_entries, (int*) &size)) {
-//				result = index_error_enomem;
-//				return result;
-//				// FIXME: free resources !
-//				//goto error;
-//			}
+			dir_entries = append(dir_entries, entries.size);
 		}
+		entries = entries.ensure_capacity(entries.size + 1);
+		entries.size++;
+		struct index_entry& last = entries.last();
+		cstrcpy(&last.name, &last.namelen, entry->d_name, 128);
+		last.total_namelen = last.namelen + entries[parent].total_namelen;
+		last.total_namelen += 1; // account for '/'
+		last.parent = parent;
+		last.d_type = entry->d_type;
 
-		size++;
+  debug("%s: entry #%lu %s namelen:%lu total_namelen:%lu\n", buffer, entries.size, entry->d_name,
+		last.namelen,
+		last.total_namelen);
 	}
 
 error:
-	free(entries->name);
-	free(entries);
+	//free(entries->name);
+	//free(entries);
 done:
 	dir_entries.dealloc();
-//	if (dir_entries)
-//		free(dir_entries);
 	if (d)
 		closedir(d);
 
-	index->capacity = capacity;
-	index->entries = entries;
-	index->size = size;
-	return result;
+	out_index->entries = entries;
+	return index_error_none;
 }
 
 struct index_list {
@@ -472,7 +495,7 @@ enum index_error navigator_addindex(struct navigator* navigator, const char* roo
 	}
 
 	if (*list) {
-		index_free(&(*list)->head);
+		index_free((*list)->head);
 	} else {
 		*list = (struct index_list*) malloc(sizeof(struct index_list));
 		if (!*list)
@@ -489,7 +512,7 @@ void navigator_free(struct navigator* navigator)
 {
 	struct index_list* list = navigator->index_list;
 	while (list) {
-		index_free(&list->head);
+		index_free(list->head);
 		struct index_list* current = list;
 		list = list->tail;
 		free(current);
@@ -504,7 +527,6 @@ int test(int argc, char** argv)
 	struct navigator navigator;
 	memset(&navigator, 0, sizeof(navigator));
 	struct index index;
-	//enum index_error r = index_make(&index, argv[1]);
 	enum index_error r = navigator_addindex(&navigator, argv[1]);
 
 	switch (r) {
@@ -522,20 +544,20 @@ int test(int argc, char** argv)
 
 	index = navigator.index_list->head;
 
-	printf("%lu entries\n", index.size);
+	printf("%lu entries\n", index.size() - 1 /* do no count root */);
 
 	char buffer[256];
 
 	if (argc < 3) {
 		navigator_free(&navigator);
 		return 0;
-		for (int i = 0; i < index.size; i++) {
+		for (int i = 0; i < index.size(); i++) {
 			index_copy_complete_name(buffer, index.entries, i);
 			puts(buffer);
 		}
 	}
 
-	slice<int> matches = index_find_all_matches(&index, argv[2], match_anywhere);
+	slice<int> matches = index_find_all_matches(index, argv[2], match_anywhere);
 	printf("%d matches\n", matches.size);
 	for (int i = 0; i < matches.size; i++) {
 		index_copy_complete_name(buffer, index.entries, matches[i]);
