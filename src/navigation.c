@@ -73,6 +73,72 @@ struct array {
 	char data[];
 };
 
+template <typename T>
+struct dynarray {
+	size_t size;
+	size_t capacity;
+	T elements[];
+
+	T& operator[](int i)
+	{
+		return elements[i];
+	}
+
+	T& get(int i)
+	{
+		return elements[i];
+	}
+};
+
+template <typename T>
+struct slice {
+	size_t offset;
+	size_t size;
+	struct dynarray<T>* array;
+
+	T& operator[](int i)
+	{
+		assert(i + offset < array->capacity);
+		return array->elements[offset + i];
+	}
+
+	bool is_empty()
+	{
+		return size == 0;
+	}
+
+	void dealloc()
+	{
+		if (array)
+			free(array);
+	}
+};
+
+template <typename T>
+void append(struct dynarray<T>** a_ptr, const T& t)
+{
+	assert(a_ptr);
+	struct dynarray<T>* a = *a_ptr;
+	if (!a || a->size == a->capacity) {
+		size_t new_size = a ? a->size : 0;
+		size_t new_capacity = a ? a->capacity * 2 : 16;
+		a = (struct dynarray<T>*) realloc(a, sizeof(struct dynarray<T>) + new_capacity * sizeof(T));
+		a->capacity = new_capacity;
+		a->size = new_size;
+		*a_ptr = a;
+	}
+	a->elements[a->size] = t;
+	a->size++;
+}
+
+template <typename T>
+struct slice<T> append(struct slice<T> s, const T& t)
+{
+	append(&s.array, t);
+	s.size++;
+	return s;
+}
+
 static struct array empty_array = {
 	.size = 0,
 	.capacity = 0,
@@ -80,6 +146,8 @@ static struct array empty_array = {
 
 struct array* array_base(void* array)
 {
+	if (!array)
+		return NULL;
 	return (struct array*) ((char*) array - offsetof(struct array, data));
 }
 
@@ -87,13 +155,15 @@ struct array* array_base(void* array)
 #define array_capacity(array) (array_base(array)->capacity)
 #define array_free(array)     free(array_base(array))
 
-int array_pushback_proto(void** array_ptr, void* obj, size_t obj_size)
+template <typename T>
+int array_pushback(T** array_ptr, T* obj)
 {
 	assert(array_ptr);
-	struct array* array = (*array_ptr) ? array_base(*array_ptr) : NULL;
+	struct array* array = array_base(*array_ptr);
 	size_t s = array ? array->size : 0;
 	size_t c1 = array ? array->capacity : 0;
 	size_t c2 = array_find_capacity(c1, s);
+	size_t obj_size = sizeof(*obj);
 
 	if (c1 != c2) {
   debug("realloc array of size %lu: %lu -> %lu\n", s, c1, c2);
@@ -102,7 +172,7 @@ int array_pushback_proto(void** array_ptr, void* obj, size_t obj_size)
 			return 0;
 		array->size = s; /* needed for initially empty array */
 		array->capacity = c2;
-		*array_ptr = array->data;
+		*array_ptr = (T*) array->data;
 	}
 
   debug("append value %u at index %lu\n", *((int*)obj), s);
@@ -110,8 +180,6 @@ int array_pushback_proto(void** array_ptr, void* obj, size_t obj_size)
 	array->size++;
 	return 1;
 }
-// TODO: how to assert types ? Use cpp templates ? Use typeof ? Use static_assert ?
-#define array_pushback(array, obj) array_pushback_proto((void**)array, obj, sizeof(*obj))
 
 static const char* dtype_name(unsigned char dtype) {
 	switch (dtype) {
@@ -264,7 +332,8 @@ enum index_error index_make(struct index* index, const char* root)
 		return index_error_enomem;
 
 	// FIXME be sure to unalloc this in all return paths !
-	int* dir_entries = NULL;
+	//int* dir_entries = NULL;
+	slice<size_t> dir_entries = {};
 	int next_dir = 0;
 
 	cstrcpy(&entries->name, &entries->namelen, root, 256);
@@ -303,11 +372,16 @@ enum index_error index_make(struct index* index, const char* root)
 			closedir(d);
 			d = NULL;
 
-			assert(next_dir <= array_size(dir_entries));
-			if (next_dir == array_size(dir_entries)) {
+//			assert(next_dir <= array_size(dir_entries));
+//			if (next_dir == array_size(dir_entries)) {
+			if (next_dir == dir_entries.size) {
 				goto done;
 			}
+
 			parent = dir_entries[next_dir++];
+			//parent = dir_entries->get(next_dir++);
+			//parent = dir_entries->operator[](next_dir++);
+
 			assert(parent < size);
 			index_copy_complete_name(buffer, entries, parent);
   debug("opening %s\n", buffer);
@@ -352,12 +426,15 @@ enum index_error index_make(struct index* index, const char* root)
 		entries[size].d_type = entry->d_type;
 
 		if (entry->d_type == DT_DIR) {
-			if (!array_pushback(&dir_entries, (int*) &size)) {
-				result = index_error_enomem;
-				return result;
-				// FIXME: free resources !
-				//goto error;
-			}
+			dir_entries = append(dir_entries, size);
+			//append(&dir_entries, size);
+
+//			if (!array_pushback(&dir_entries, (int*) &size)) {
+//				result = index_error_enomem;
+//				return result;
+//				// FIXME: free resources !
+//				//goto error;
+//			}
 		}
 
 		size++;
@@ -367,8 +444,9 @@ error:
 	free(entries->name);
 	free(entries);
 done:
-	if (dir_entries)
-		array_free(dir_entries);
+	dir_entries.dealloc();
+//	if (dir_entries)
+//		free(dir_entries);
 	if (d)
 		closedir(d);
 
