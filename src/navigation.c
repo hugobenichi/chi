@@ -266,10 +266,9 @@ int is_match(const char* candidate, const char* pattern, enum match_type mt)
 	}
 }
 
-int index_find_all_matches(int** out, size_t outcapacity, struct index* index, const char* pattern, enum match_type mt)
+slice<int> index_find_all_matches(struct index* index, const char* pattern, enum match_type mt)
 {
-	assert(out);
-	int outsize = 0;
+	slice<int> out = {};
 	struct index_entry* entries = index->entries;
 	for (int i = 1 /* skip root */; i < index->size; i++) {
 		int j = i;
@@ -279,14 +278,9 @@ int index_find_all_matches(int** out, size_t outcapacity, struct index* index, c
 		if (j <= 0) {
 			continue;
 		}
-		if (!array_ensure_capacity(out, &outcapacity, outsize + 1)) {
-			// FIXME: return error properly !
-			return 0;
-		}
-		assert(*out);
-		(*out)[outsize++] = i;
+		out = append(out, i);
 	}
-	return outsize;
+	return out;
 }
 
 void index_copy_complete_name(char* dst, struct index_entry* entries, int entry)
@@ -541,15 +535,14 @@ int test(int argc, char** argv)
 		}
 	}
 
-	int* matches = NULL;
-	int n_matches = index_find_all_matches(&matches, 0, &index, argv[2], match_anywhere);
-	printf("%d matches\n", n_matches);
-	for (int i = 0; i < n_matches; i++) {
+	slice<int> matches = index_find_all_matches(&index, argv[2], match_anywhere);
+	printf("%d matches\n", matches.size);
+	for (int i = 0; i < matches.size; i++) {
 		index_copy_complete_name(buffer, index.entries, matches[i]);
 		puts(buffer);
 //		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
 	}
-	free(matches);
+	matches.dealloc();
 
 	exit:
 	navigator_free(&navigator);
