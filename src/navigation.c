@@ -16,6 +16,14 @@
 
 #define DEBUG 0
 
+template <typename T>
+void swap(T& a, T& b)
+{
+	T t = a;
+	a = b;
+	b = t;
+}
+
 void* debug_malloc(const char* loc, const char* func, size_t size) {
 	printf("%s %s: malloc(%lu)\n", loc, func, size);
 	return malloc(size);
@@ -125,6 +133,28 @@ struct slice {
 		return array->elements[offset + size - 1];
 	}
 
+	T* at(int i)
+	{
+		assert(i + offset < array->capacity);
+		return array->elements + offset + i;
+	}
+
+	T* at_last(int i)
+	{
+		assert(size > 0);
+		return at(size = 1);
+	}
+
+	slice<T> remove(int i)
+	{
+		assert(0 <= i);
+		assert(i < size);
+		slice<T> s = *this;
+		s.size--;
+		swap(array->elements[offset + i], array->elements[offset + size]);
+		return s;
+	}
+
 	bool is_empty()
 	{
 		return size == 0;
@@ -174,7 +204,7 @@ void append(struct dynarray<T>** a_ptr, const T& t)
 }
 
 template <typename T>
-struct slice<T> append(struct slice<T> s, const T& t)
+slice<T> append(struct slice<T> s, const T& t)
 {
 	append(&s.array, t);
 	s.size++;
@@ -279,12 +309,16 @@ struct index {
 
 	size_t size() { return entries.size; }
 	struct index_entry& operator[](int i) { return entries[i]; }
-};
+	const char* root() { return entries[0].name; }
 
-const char* index_root(struct index index)
-{
-	return index.entries[0].name;
-}
+	void dealloc()
+	{
+		for (int i = 0; i < entries.size; i++) {
+			free(entries[i].name);
+		}
+		entries.dealloc();
+	}
+};
 
 enum match_type {
 	match_undefined,
@@ -348,14 +382,6 @@ enum index_error {
 	index_error_invalid_root,
 	index_error_enomem
 };
-
-void index_free(struct index index)
-{
-	for (int i = 0; i < index.size(); i++) {
-		free(index.entries[i].name);
-	}
-	index.entries.dealloc();
-}
 
 enum index_error index_make(struct index* out_index, const char* root)
 {
@@ -475,51 +501,43 @@ done:
 	return index_error_none;
 }
 
-struct index_list {
-	struct index_list* tail;
-	struct index head;
-};
-
 struct navigator {
-	struct index_list* index_list;
+	slice<struct index> index_list;
 	// TODO: currently opened files
-};
 
-enum index_error navigator_addindex(struct navigator* navigator, const char* root)
-{
-	struct index_list** list = &navigator->index_list;
-	size_t rootlen = strnlen(root, 64);
-	while (*list) {
-		if (strncmp(index_root((*list)->head), root, rootlen) == 0) {
-			break;
+	void rmindex(const char* root)
+	{
+		size_t rootlen = strnlen(root, 64);
+		for (int i = 0; i < index_list.size; i++) {
+			struct index* index = index_list.at(i);
+			if (strncmp(index->root(), root, rootlen) == 0) {
+				index->dealloc();
+				index_list = index_list.remove(i);
+				return;
+			}
 		}
-		list = &(*list)->tail;
 	}
 
-	if (*list) {
-		index_free((*list)->head);
-	} else {
-		*list = (struct index_list*) malloc(sizeof(struct index_list));
-		if (!*list)
-			return index_error_enomem;
-		(*list)->tail = NULL;
+	enum index_error addindex(const char* root)
+	{
+		struct index index;
+		enum index_error e = index_make(&index, root);
+		if (e != index_error_none) {
+			return e;
+		}
+		rmindex(root);
+		index_list = append(index_list, index);
+		return index_error_none;
 	}
 
-	enum index_error e = index_make(&(*list)->head, root);
-	// FIXME: if error, dealloc e and drop it ?
-	return e;
-}
-
-void navigator_free(struct navigator* navigator)
-{
-	struct index_list* list = navigator->index_list;
-	while (list) {
-		index_free(list->head);
-		struct index_list* current = list;
-		list = list->tail;
-		free(current);
+	void dealloc()
+	{
+		for (int i = 0; i < index_list.size; i++) {
+			index_list[i].dealloc();
+		}
+		index_list.dealloc();
 	}
-}
+};
 
 int navigation_manualtest(int argc, char** argv)
 {
@@ -528,7 +546,7 @@ int navigation_manualtest(int argc, char** argv)
 
 	struct navigator navigator;
 	memset(&navigator, 0, sizeof(navigator));
-	enum index_error r = navigator_addindex(&navigator, argv[1]);
+	enum index_error r = navigator.addindex(argv[1]);
 
 	switch (r) {
 	case index_error_none:
@@ -543,14 +561,14 @@ int navigation_manualtest(int argc, char** argv)
 		puts("unknown error");
 	}
 
-	struct index index = navigator.index_list->head;
+	struct index index = navigator.index_list[0];
 
 	printf("%lu entries\n", index.size() - 1 /* do no count root */);
 
 	char buffer[256];
 
 	if (argc < 3) {
-		navigator_free(&navigator);
+		navigator.dealloc();
 		return 0;
 		for (int i = 0; i < index.size(); i++) {
 			index_copy_complete_name(buffer, index.entries, i);
@@ -568,7 +586,7 @@ int navigation_manualtest(int argc, char** argv)
 	matches.dealloc();
 
 	exit:
-	navigator_free(&navigator);
+	navigator.dealloc();
 	return 0;
 }
 
@@ -639,13 +657,13 @@ void navigation_autotest()
 	struct index index;
 	slice<int> matches;
 
-	enum index_error r = navigator_addindex(&navigator, test_dirs[0]);
+	enum index_error r = navigator.addindex(test_dirs[0]);
 	if (r != index_error_none) {
 		puts("error");
 		goto cleanup;
 	}
 
-	index = navigator.index_list->head;
+	index = navigator.index_list[0];
 	matches = index_find_all_matches(index, "ff", match_anywhere);
 
 	printf("%d matches\n", matches.size);
@@ -655,7 +673,7 @@ void navigation_autotest()
 		puts(buffer);
 	}
 	matches.dealloc();
-	navigator_free(&navigator);
+	navigator.dealloc();
 
 	cleanup:
 	while (f-- != test_files) {
@@ -669,8 +687,8 @@ void navigation_autotest()
 
 int main(int argc, char* argv[])
 {
-	navigation_autotest();
-	return 0;
+//	navigation_autotest();
+//	return 0;
 	for (int i = 0; i < 1; i++) {
 		navigation_manualtest(argc, argv);
 	}
