@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define __stringize1(x) #x
 #define __stringize2(x) __stringize1(x)
@@ -519,14 +521,13 @@ void navigator_free(struct navigator* navigator)
 	}
 }
 
-int test(int argc, char** argv)
+int navigation_manualtest(int argc, char** argv)
 {
 	if (argc < 2)
 		return 0;
 
 	struct navigator navigator;
 	memset(&navigator, 0, sizeof(navigator));
-	struct index index;
 	enum index_error r = navigator_addindex(&navigator, argv[1]);
 
 	switch (r) {
@@ -542,7 +543,7 @@ int test(int argc, char** argv)
 		puts("unknown error");
 	}
 
-	index = navigator.index_list->head;
+	struct index index = navigator.index_list->head;
 
 	printf("%lu entries\n", index.size() - 1 /* do no count root */);
 
@@ -571,10 +572,107 @@ int test(int argc, char** argv)
 	return 0;
 }
 
+/* expected output:
+5 matches
+/tmp/chi_nav_test//foo/ff1
+/tmp/chi_nav_test//foo/ff2
+/tmp/chi_nav_test//bar/ff1
+/tmp/chi_nav_test//bar/ff2
+/tmp/chi_nav_test//bar/ff3
+*/
+void navigation_autotest()
+{
+
+#define mkdir(path) \
+	if (mkdir(path, -1) < 0) { \
+		char buffer[256]; \
+		sprintf(buffer, __LOC__ " #%s(): mkdir(%s) failed: ", __func__, path); \
+		perror(buffer); \
+	}
+
+#define rm(path) \
+	if (remove(path) < 0) { \
+		char buffer[256]; \
+		sprintf(buffer, __LOC__ " #%s(): remove(%s) failed: ", __func__, path); \
+		perror(buffer); \
+	}
+
+#define touch(path) \
+	if (int fd = open(path, O_RDONLY | O_CREAT) < 0) { \
+		char buffer[256]; \
+		sprintf(buffer, __LOC__ " #%s(): open(%s) failed: ", __func__, path); \
+		perror(buffer); \
+	}
+
+	static const char* test_dirs[] = {
+		"/tmp/chi_nav_test/",
+		"/tmp/chi_nav_test/foo",
+		"/tmp/chi_nav_test/bar",
+		"/tmp/chi_nav_test/baz",
+		NULL,
+	};
+
+	static const char* test_files[] = {
+		"/tmp/chi_nav_test/f1",
+		"/tmp/chi_nav_test/f2",
+		"/tmp/chi_nav_test/foo/ff1",
+		"/tmp/chi_nav_test/foo/ff2",
+		"/tmp/chi_nav_test/foo/fg1",
+		"/tmp/chi_nav_test/bar/ff1",
+		"/tmp/chi_nav_test/bar/ff2",
+		"/tmp/chi_nav_test/bar/ff3",
+		"/tmp/chi_nav_test/bar/fg1",
+		NULL,
+	};
+
+	const char** d = test_dirs;
+	const char** f = test_files;
+
+	while (*d) {
+		mkdir(*d++);
+	}
+	while (*f) {
+		touch(*f++);
+	}
+
+	struct navigator navigator = {};
+	struct index index;
+	slice<int> matches;
+
+	enum index_error r = navigator_addindex(&navigator, test_dirs[0]);
+	if (r != index_error_none) {
+		puts("error");
+		goto cleanup;
+	}
+
+	index = navigator.index_list->head;
+	matches = index_find_all_matches(index, "ff", match_anywhere);
+
+	printf("%d matches\n", matches.size);
+	char buffer[256];
+	for (int i = 0; i < matches.size; i++) {
+		index_copy_complete_name(buffer, index.entries, matches[i]);
+		puts(buffer);
+	}
+	matches.dealloc();
+	navigator_free(&navigator);
+
+	cleanup:
+	while (f-- != test_files) {
+		rm(*f);
+	}
+	while (d-- != test_dirs) {
+		rm(*d);
+	}
+
+}
+
 int main(int argc, char* argv[])
 {
+	navigation_autotest();
+	return 0;
 	for (int i = 0; i < 1; i++) {
-		test(argc, argv);
+		navigation_manualtest(argc, argv);
 	}
 	return 0;
 }
