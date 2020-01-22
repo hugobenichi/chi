@@ -267,15 +267,51 @@ static const char* dtype_name(unsigned char dtype) {
 	}
 }
 
+// sgring-like class that "owns" the underlying data. Manipulated as a pointer
+// and allocated on the heap. String produces should always return this type.
 struct string {
-  int capacity;
-  int length;
-  char c_str[0];
+	int length;
+	char cstr[0];
+
+	size_t bytesize() { return sizeof(struct string) + length + 1; }
+
+	static struct string* make(const char* cstr, size_t len)
+	{
+		len = strnlen(cstr, len);
+		struct string* string = (struct string*) malloc(sizeof(struct string) + len + 1);
+		memcpy(string->cstr, cstr, len);
+		string->cstr[len] = '\0';
+		string->length = len;
+		return string;
+	}
+
+	struct string* copy()
+	{
+		size_t total_len = bytesize();
+		struct string* stringcopy = (struct string*) malloc(total_len);
+		memcpy(stringcopy, this, total_len);
+		return stringcopy;
+	}
 };
 
+// string-like class that "borrows" an existing string. Always manipulated as a
+// value. Do not store unless the lifecycle of the underlying string is known.
+// String consumers should always take as arguments this type.
 struct stringview {
-  int length;
-  const char* c_str;
+	int offset;
+	int length;
+	struct string* string;
+
+	char* cstr() { return string->cstr + offset; }
+
+	static struct stringview wrap(struct string* string)
+	{
+		return (struct stringview) {
+			.offset = 0,
+			.length = string->length,
+			.string = string,
+		};
+	}
 };
 
 void cstrcpy(char** dst, size_t* dstlen, const char* src, size_t maxn)
@@ -286,14 +322,6 @@ void cstrcpy(char** dst, size_t* dstlen, const char* src, size_t maxn)
 	mem[len] = '\0';
 	*dst = mem;
 	*dstlen = len;
-}
-
-struct stringview string_to_view(const struct string* s)
-{
-	return (struct stringview) {
-		.length = s->length,
-		.c_str  = s->c_str,
-	};
 }
 
 struct index_entry {
