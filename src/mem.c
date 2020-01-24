@@ -7,8 +7,8 @@
 slice s(void *start, void *stop)
 {
 	return (slice) {
-		.start = start,
-		.stop = stop,
+		.start = (char*) start,
+		.stop = (char*) stop,
 	};
 }
 
@@ -20,7 +20,7 @@ size_t slice_len(slice s)
 char* slice_to_string(slice s)
 {
 	size_t l = slice_len(s);
-	char *string = malloc(l + 1);
+	char *string = (char*) malloc(l + 1);
 	if (string) {
 		memcpy(string, s.start, l);
 		*(string + l) = 0;
@@ -136,11 +136,11 @@ slice slice_strcpy(slice s, const char* c_string)
 
 buffer b(void* memory, size_t len)
 {
-	return (buffer) {
-		.memory = memory,
-		.cursor = 0,
-		.size = len,
-	};
+	buffer b;
+	b.memory = (char*) memory;
+	b.cursor = 0;
+	b.size = len;
+	return b;
 }
 
 slice slice_copy_bytes(slice dst, const char *src, size_t srclen)
@@ -166,7 +166,7 @@ void buffer_ensure_size(struct buffer *buffer, size_t size)
 	if (size <= buffer->size) {
 		return;
 	}
-	buffer->memory = realloc(buffer->memory, size);
+	buffer->memory = (char*) realloc(buffer->memory, size);
 	buffer->size = size;
 }
 
@@ -243,7 +243,7 @@ size_t copy_slice_buffer_full(slice dst, buffer src)
 
 void memset_i32(void* dst, int val, size_t len)
 {
-	int* p = dst;
+	int* p = (int*) dst;
 	int* end = (int*) ((char*)dst + len);
 	while (p < end) {
 		*p++ = val;
@@ -252,7 +252,7 @@ void memset_i32(void* dst, int val, size_t len)
 
 void memset_u32(void* dst, unsigned int val, size_t len)
 {
-	unsigned int* p = dst;
+	unsigned int* p = (unsigned int*) dst;
 	unsigned int* end = (unsigned int*) ((char*)dst + len);
 	while (p < end) {
 		*p++ = val;

@@ -10,7 +10,7 @@ static const int LOG_BUFFER_SIZE = 256;
 
 static int is_init = 0;
 
-const int LOG_FILENO = 77;
+#define LOG_FILENO 77
 
 // Run this at startup to be sure that fd LOG_FILENO is reserved.
 void log_init()

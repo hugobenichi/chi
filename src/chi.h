@@ -45,17 +45,6 @@ typedef uint64_t  u64;
 // Find statically the size of a __VA_ARGS__ list passed to a macro.
 #define NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
 
-#ifndef strnlen
-static size_t strnlen(const char *str, size_t maxlen)
-{
-  size_t i = 0;
-  while (i < maxlen && str[i]) {
-    i++;
-  }
-  return i;
-}
-#endif
-
 #ifndef strlcpy
 static size_t strlcpy(char *dst, const char *src , size_t size)
 {
@@ -107,10 +96,29 @@ struct err {
   struct err *cause;
 };
 
+static inline struct err err_make(int errno_v, const char *loc, const char *func)
+{
+  struct err e;
+  e.errno_val = errno_v;
+  e.loc = loc;
+  e.func = func;
+  return e;
+}
+
+static inline struct err err_make(struct err* cause, const char *loc, const char *func)
+{
+  struct err e;
+  e.loc = loc;
+  e.func = func;
+  e.cause = cause;
+  e.is_error = 1;
+  return e;
+}
+
 static inline struct err err_new_proto(struct err err)
 {
   if (err.cause) {
-    struct err *cause_copy = malloc(sizeof(struct err));
+    struct err *cause_copy = (struct err*) malloc(sizeof(struct err));
     memcpy(cause_copy, err.cause, sizeof(struct err));
     err.errno_val = err.cause->errno_val;
     err.cause = cause_copy;
@@ -140,9 +148,8 @@ static inline const char* error_msg(struct err err)
 }
 
 #define error(...) err_new_proto((struct err){ .errno_val=CHI_ERR_GENERIC, .loc=__LOC__, .func=__func__, ##__VA_ARGS__})
-#define error_because(errno_v) err_new_proto((struct err){ .errno_val=errno_v, .loc=__LOC__, .func=__func__})
-#define error_wrap(err) error(.cause=&err)
-#define return_if_error(err) if (err.is_error) return error_wrap(err)
+#define error_because(errno_v) err_new_proto(err_make(errno_v, __LOC__, __func__))
+#define return_if_error(err) if (err.is_error) return err_make(&err, __LOC__, __func__)
 #define noerror() error_because(0)
 
 
@@ -225,10 +232,10 @@ static inline vec v(int32_t x ,int32_t y)
 
 static inline rec r(vec min, vec max)
 {
-	return (rec){
-		.min = min,
-		.max = max,
-	};
+          rec r;
+          r.min = min;
+          r.max = max;
+          return r;
 }
 
 static inline vec sub_vec_vec(vec v0, vec v1)
@@ -462,20 +469,10 @@ static inline void read_binary(const char *path)
 
 /// module CONFIG ///
 
-struct config {
-  int debug_noterm;
-  int debug_config;
-};
-
-struct config CONFIG;
-
 void config_init();
 
 
 /// module LOG ///
-
-// The fd value where logs are emitted. Goes to /dev/null by default.
-const int LOG_FILENO;
 
 void log_init();
 int log_formatted_message(const char *format, ...);
@@ -664,15 +661,17 @@ size_t framebuffer_push_bg(struct framebuffer_iter *iter, int bg, size_t size);
 
 /// module TEXTBUFFER ///
 
+struct textpiece {
+  struct textpiece *next;
+  struct slice slice;
+};
+
 // A single line of text, made of a linked list of struct slices.
 // Lines are linked together in a doubly-linked lists for simple navigation and insertions.
 struct line {
   struct line *prev;
   struct line *next;
-  struct textpiece {
-    struct textpiece *next;
-    slice slice;
-  } *fragments;
+  struct textpiece *fragments;
   size_t bytelen;
 };
 

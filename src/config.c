@@ -2,11 +2,6 @@
 
 #define DEBUG 0
 
-struct config CONFIG = {
-  .debug_noterm = 0,
-  .debug_config = 0,
-};
-
 static int is_space(char c) {
 	return c == ' ' || c == '\t';
 }

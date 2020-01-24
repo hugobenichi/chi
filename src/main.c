@@ -28,7 +28,7 @@ struct slice input_to_string(slice slice, struct input input)
 		return slice_printf(slice, "KEY:%c", input.code);
 	}
 
-	char *s = NULL;
+	const char *s = NULL;
 	switch (input.code) {
 	case CTRL_AT:			s = "CTRL_AT"; break;
 	case CTRL_A:			s = "CTRL_A"; break;

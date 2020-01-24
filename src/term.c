@@ -10,6 +10,7 @@
 #define TERM_ESC		"\x1b"
 
 #define DEBUG 0
+bool debug_noterm = false;
 
 #define NUMCOLOR 256
 static const char* fg_color_control_string[NUMCOLOR];
@@ -22,7 +23,7 @@ static const char default_text = '?';
 
 static void color_init() {
 	size_t stringlen = strlen(";48;5;" __stringize2(NUMCOLOR) "m") + /* null byte */ 1;
-	char* buffer = malloc(2 * NUMCOLOR * stringlen);
+	char* buffer = (char*) malloc(2 * NUMCOLOR * stringlen);
 	// if needed: free(fg_color_control_string[0]);
 	for (int i = 0; i < NUMCOLOR; i++) {
 		sprintf(buffer, "38;5;%d", i);
@@ -78,7 +79,7 @@ void term_init(int term_in_fd, int term_out_fd)
 {
 	color_init();
 
-if (CONFIG.debug_noterm) return;
+if (debug_noterm) return;
 
 	term_init_in_fd = term_in_fd;
 	term_init_out_fd = term_out_fd;
@@ -127,7 +128,7 @@ struct framebuffer_iter framebuffer_iter_make(struct framebuffer *framebuffer, r
 		.text = framebuffer->text,
 		.fg = framebuffer->fg_colors,
 		.bg = framebuffer->bg_colors,
-		.stride = framebuffer->window.x,
+		.stride = (size_t) framebuffer->window.x,
 		.window = rec,
 		// Start just before the first line. Empty iterator
 		// will correctly not move forward.
@@ -210,9 +211,9 @@ void framebuffer_init(struct framebuffer *framebuffer, vec term_size)
 	framebuffer->window = term_size;
 	size_t grid_size = term_size.x * term_size.y;
 	framebuffer->buffer_len = grid_size;
-	framebuffer->text = realloc(framebuffer->text, grid_size);
-	framebuffer->fg_colors = realloc(framebuffer->fg_colors, sizeof(int) * grid_size);
-	framebuffer->bg_colors = realloc(framebuffer->bg_colors, sizeof(int) * grid_size);
+	framebuffer->text = (char*) realloc(framebuffer->text, grid_size);
+	framebuffer->fg_colors = (int*) realloc(framebuffer->fg_colors, sizeof(int) * grid_size);
+	framebuffer->bg_colors = (int*) realloc(framebuffer->bg_colors, sizeof(int) * grid_size);
 
 	buffer_ensure_size(&framebuffer->output_buffer, 0x10000);
 	memset(framebuffer->text, default_text, grid_size);
@@ -345,22 +346,22 @@ vec term_get_size()
 }
 
 static inline struct input input_for_error(int err) {
-	return (struct input) {
-		.code = INPUT_ERROR_CODE,
-		.errno_value = err,
-	};
+	struct input i;
+	i.code = INPUT_ERROR_CODE;
+	i.errno_value = err;
+	return i;
 }
 
 static inline struct input input_for_code(enum input_code code) {
-	return (struct input) {
-		.code = code,
-	};
+	struct input i;
+	i.code = (enum input_code) code;
+	return i;
 }
 
 static inline struct input input_for_key(char code) {
-	return (struct input) {
-		.code = code,
-	};
+	struct input i;
+	i.code = (enum input_code) code;
+	return i;
 }
 
 // debugging functions
@@ -479,9 +480,9 @@ static struct input term_get_mouse_input(int term_in_fd)
 		INPUT_MOUSE_RELEASE,
 	};
 
-	return (struct input) {
-		.code = mouse_click_types[input_buffer[0] & 0x3],
-		.mouse_click.x = mouse_coord_fixup(input_buffer[1]),
-		.mouse_click.y = mouse_coord_fixup(input_buffer[2]),
-	};
+	struct input i;
+	i.code = mouse_click_types[input_buffer[0] & 0x3];
+	i.mouse_click.x = mouse_coord_fixup(input_buffer[1]);
+	i.mouse_click.y = mouse_coord_fixup(input_buffer[2]);
+	return i;
 }

@@ -26,7 +26,7 @@ struct textchunk* textchunk_alloc()
 	if_null(textchunk_free_list_head) {
 		textchunk_total_count++;
 		textchunk_free_count++;
-		textchunk_free_list_head = malloc(textchunk_size);
+		textchunk_free_list_head = (struct textchunk*) malloc(textchunk_size);
 	}
 	textchunk_free_count--;
 	struct textchunk *chunk = textchunk_free_list_head;
@@ -39,7 +39,8 @@ struct textchunk* textchunk_alloc()
 void textchunk_free(struct textchunk *chunk)
 {
 	assert(chunk);
-	struct textchunk dummy = { .next = chunk };
+	struct textchunk dummy;
+	dummy.next = chunk;
 	struct textchunk *end = &dummy;
 	while (end->next) {
 		textchunk_free_count++;
@@ -102,7 +103,7 @@ static void all_textbuffers_resize()
 	}
 	size_t new_size = new_capa * sizeof(struct textbuffer_impl);
 
-	struct textbuffer_impl *new_storage = realloc(all_textbuffers, new_size);
+	struct textbuffer_impl *new_storage = (struct textbuffer_impl*) realloc(all_textbuffers, new_size);
 	if (!all_textbuffers) {
 		memset(new_storage, 0, new_size);
 		// construct the freelist for the first time
@@ -212,7 +213,7 @@ static void textpiece_free(struct textpiece *textpiece)
 
 static struct line* line_alloc_empty()
 {
-	return calloc(sizeof(struct line), 1); // calloc because it needs to be zeroed
+	return (struct line*) calloc(sizeof(struct line), 1); // calloc because it needs to be zeroed
 }
 
 static void line_free(struct line *line)
@@ -266,7 +267,7 @@ static void line_append_fragment(struct line *line, slice fragment)
 	while (*last_fragment) {
 		*last_fragment = (*last_fragment)->next;
 	}
-	*last_fragment = calloc(sizeof(struct textpiece), 1);
+	*last_fragment = (struct textpiece*) calloc(sizeof(struct textpiece), 1);
 // TODO: this should return ENOMEM in case it fails
 	assert(*last_fragment);
 	(*last_fragment)->slice = fragment;
@@ -279,7 +280,7 @@ int textbuffer_load(const char *path, struct textbuffer *textbuffer)
 {
 	assert(path);
 	size_t len = strnlen(path, file_path_maxlen);
-	char* path_copy = malloc(len + 1);
+	char* path_copy = (char*) malloc(len + 1);
 	memcpy(path_copy, path, len + 1);
 
 	int fd = open(path_copy, O_RDONLY);
@@ -402,7 +403,7 @@ void textbuffer_free(struct textbuffer *textbuffer)
 
 char* cursor_to_string(struct cursor *cursor)
 {
-	char *buffer = malloc(cursor->line->bytelen + 1);
+	char *buffer = (char*) malloc(cursor->line->bytelen + 1);
 	char *a = buffer;
 	struct textpiece *fragment = cursor->line->fragments;
 	while (fragment) {

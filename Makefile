@@ -2,13 +2,12 @@
 
 .DEFAULT_GOAL := all
 
-CC=gcc
+CC=g++
 WARNINGS=-W -Wall
-WARNINGS+=-Wno-initializer-overrides
 WARNINGS+=-Wno-unused-function
 WARNINGS+=-Wno-unused-parameter
 WARNINGS+=-Wno-unused-const-variable
-CFLAGS=-I./src -std=c99 -g $(WARNINGS)
+CFLAGS=-I./src -g $(WARNINGS)
 
 OUTDIR=build
 SOURCES=./src/*.c

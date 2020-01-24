@@ -13,7 +13,7 @@ struct pool* pool_init(size_t object_size, int capacity)
 	assert(object_size);
 	assert(capacity);
 
-	struct pool *pool = malloc(pool_total_memory(object_size, capacity));
+	struct pool *pool = (struct pool*) malloc(pool_total_memory(object_size, capacity));
 	assert(pool);
 
 	int last = capacity - 1;
@@ -34,7 +34,7 @@ struct pool* pool_init(size_t object_size, int capacity)
 int pool_get_index(struct pool *pool, void *object)
 {
 	u8 *base= (u8*) (pool->free_object_map + pool->capacity);
-	u8 *obj = object;
+	u8 *obj = (u8*) object;
 
 	assert(base <= obj);
 	assert(obj < base + pool->capacity * pool->object_size);
