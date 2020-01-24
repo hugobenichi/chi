@@ -25,7 +25,7 @@ void swap(T& a, T& b)
 }
 
 template <typename T>
-T* mcopy(T* src, size_t srclen)
+T* mcopy(const T* src, size_t srclen)
 {
 	T* src_copy = (T*) malloc(srclen);
 	memcpy(src_copy, src, srclen);
@@ -275,6 +275,8 @@ static const char* dtype_name(unsigned char dtype) {
 	}
 }
 
+struct stringview;
+
 // sgring-like class that "owns" the underlying data. Manipulated as a pointer
 // and allocated on the heap. String produces should always return this type.
 struct string {
@@ -323,14 +325,14 @@ struct stringview {
 	}
 };
 
+stringview view(string* string) { return stringview::make(string); }
+
 void cstrcpy(char** dst, size_t* dstlen, const char* src, size_t maxn)
 {
 	size_t len = strnlen(src, maxn);
-	char* mem = (char*) malloc(len + 1 /* null byte */);
-	memcpy(mem, src, len);
-	mem[len] = '\0';
-	*dst = mem;
+	*dst = mcopy(src, len + 1 /* null byte */);
 	*dstlen = len;
+	dst[len] = '\0';
 }
 
 struct index_entry {
@@ -339,7 +341,7 @@ struct index_entry {
 	int		parent;
 	unsigned char	d_type; // copied from struct dirent.d_type
 
-	stringview name() { return stringview::make(name_); }
+	stringview name() { return view(name_); }
 	size_t namelen() { return name_->length; }
 };
 
@@ -562,7 +564,7 @@ struct navigator {
 		if (e != index_error_none) {
 			return e;
 		}
-		rmindex(stringview::make(root));
+		rmindex(view(root));
 		index_list = append(index_list, index);
 		return index_error_none;
 	}
@@ -614,7 +616,7 @@ int navigation_manualtest(int argc, char** argv)
 	}
 
 	string* look_pattern = string::make(argv[2], 128);
-	slice<int> matches = index_find_all_matches(index, stringview::make(look_pattern), match_anywhere);
+	slice<int> matches = index_find_all_matches(index, view(look_pattern), match_anywhere);
 	printf("%d matches\n", matches.size);
 	for (int i = 0; i < matches.size; i++) {
 		index_copy_complete_name(buffer, index.entries, matches[i]);
@@ -704,7 +706,7 @@ void navigation_autotest()
 
 	index = navigator.index_list[0];
 	pattern = string::make("ff", 128);
-	matches = index_find_all_matches(index, stringview::make(pattern), match_anywhere);
+	matches = index_find_all_matches(index, view(pattern), match_anywhere);
 
 	printf("%d matches\n", matches.size);
 	char buffer[256];
