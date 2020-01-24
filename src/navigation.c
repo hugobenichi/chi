@@ -24,6 +24,14 @@ void swap(T& a, T& b)
 	b = t;
 }
 
+template <typename T>
+T* mcopy(T* src, size_t srclen)
+{
+	T* src_copy = (T*) malloc(srclen);
+	memcpy(src_copy, src, srclen);
+	return src_copy;
+}
+
 void* debug_malloc(const char* loc, const char* func, size_t size) {
 	printf("%s %s: malloc(%lu)\n", loc, func, size);
 	return malloc(size);
@@ -270,10 +278,15 @@ static const char* dtype_name(unsigned char dtype) {
 // sgring-like class that "owns" the underlying data. Manipulated as a pointer
 // and allocated on the heap. String produces should always return this type.
 struct string {
-	int length;
+	int length; // char array length, only valid for ASCII
 	char cstr[0];
 
-	size_t bytesize() { return sizeof(struct string) + length + 1; }
+	size_t bytesize()       { return sizeof(struct string) + length + 1; }
+	bool eq(string* that)   { return length == that->length && strncmp(cstr, that->cstr, length) == 0; }
+	struct string* copy()   { return mcopy(this, bytesize()); }
+	// These two functions are ASCII only
+	char at(int i)          { assert(0 <= i); assert(i < length); return cstr[i]; }
+	char last()	        { assert(0 < length); return cstr[length - 1]; }
 
 	static struct string* make(const char* cstr, size_t len)
 	{
@@ -285,13 +298,8 @@ struct string {
 		return string;
 	}
 
-	struct string* copy()
-	{
-		size_t total_len = bytesize();
-		struct string* stringcopy = (struct string*) malloc(total_len);
-		memcpy(stringcopy, this, total_len);
-		return stringcopy;
-	}
+	// TODO: return string length valid for UTF8
+	size_t	len() { return 0; }
 };
 
 // string-like class that "borrows" an existing string. Always manipulated as a
@@ -302,9 +310,10 @@ struct stringview {
 	int length;
 	struct string* string;
 
-	char* cstr() { return string->cstr + offset; }
+	char* cstr()             { return string->cstr + offset; }
+	bool eq(stringview that) { return length == that.length && strncmp(cstr(), that.cstr(), length) == 0; }
 
-	static struct stringview wrap(struct string* string)
+	static struct stringview make(struct string* string)
 	{
 		return (struct stringview) {
 			.offset = 0,
@@ -325,11 +334,13 @@ void cstrcpy(char** dst, size_t* dstlen, const char* src, size_t maxn)
 }
 
 struct index_entry {
-	char*		name;
-	size_t		namelen;
+	string*		name_;
 	size_t		total_namelen;
 	int		parent;
 	unsigned char	d_type; // copied from struct dirent.d_type
+
+	stringview name() { return stringview::make(name_); }
+	size_t namelen() { return name_->length; }
 };
 
 struct index {
@@ -337,12 +348,12 @@ struct index {
 
 	size_t size() { return entries.size; }
 	struct index_entry& operator[](int i) { return entries[i]; }
-	const char* root() { return entries[0].name; }
+	stringview root() { return entries[0].name(); }
 
 	void dealloc()
 	{
 		for (int i = 0; i < entries.size; i++) {
-			free(entries[i].name);
+			free(entries[i].name_);
 		}
 		entries.dealloc();
 	}
@@ -355,28 +366,28 @@ enum match_type {
 	match_from_start,
 };
 
-int is_match(const char* candidate, const char* pattern, enum match_type mt)
+int is_match(stringview candidate, stringview pattern, enum match_type mt)
 {
 	switch (mt) {
 	case match_anywhere_ignorecase:
 		// undefined !!
 		//return strcasestr(candidate, pattern) != NULL;
 	case match_anywhere:
-		return strstr(candidate, pattern) != NULL;
+		return strstr(candidate.cstr(), pattern.cstr()) != NULL;
 	case match_from_start:
-		return strncmp(candidate, pattern, strnlen(pattern, 64)) == 0;
+		return strncmp(candidate.cstr(), pattern.cstr(), pattern.length) == 0;
 	case match_undefined:
 	default:
 		return 0;
 	}
 }
 
-slice<int> index_find_all_matches(struct index index, const char* pattern, enum match_type mt)
+slice<int> index_find_all_matches(struct index index, stringview pattern, enum match_type mt)
 {
 	slice<int> out = {};
 	for (int i = 1 /* skip root */; i < index.size(); i++) {
 		int j = i;
-		while (0 < j && !is_match(index[j].name, pattern, mt)) {
+		while (0 < j && !is_match(index[j].name(), pattern, mt)) {
 			j = index[j].parent;
 		}
 		if (j <= 0) {
@@ -393,9 +404,9 @@ void index_copy_complete_name(char* dst, slice<struct index_entry> entries, int 
 	dst[left] = '\0';
 	while (entry >= 0) {
 		struct index_entry e = entries[entry];
-		size_t offset = e.total_namelen - e.namelen;
-		memcpy(dst + offset, e.name, e.namelen);
-		left -= e.namelen;
+		size_t offset = e.total_namelen - e.namelen();
+		memcpy(dst + offset, e.name_->cstr, e.namelen());
+		left -= e.namelen();
 		entry = e.parent;
 		if (entry >= 0) {
 			dst[offset - 1] = '/';
@@ -411,28 +422,26 @@ enum index_error {
 	index_error_enomem
 };
 
-enum index_error index_make(struct index* out_index, const char* root)
+enum index_error index_make(struct index* out_index, string* root)
 {
-	DIR* d = opendir(root);
+	//TODO: make sure root is free'd if en error is returned
+
+	DIR* d = opendir(root->cstr);
 	if (!d) {
 		return index_error_invalid_root;
 	}
 
-	char* root_name;
-	size_t root_namelen;
-	cstrcpy(&root_name, &root_namelen, root, 256);
 	// trim any extra '/'
-	while (root_name[root_namelen] == '/')
-		root_name[--root_namelen] = '\0';
+	while (root->last() == '/')
+		root->cstr[--root->length] = '\0';
 
-	debug("root_namelen:%lu\n", root_namelen);
+	debug("root size:%lu, root: %s\n", root->length, root->cstr);
 
 	slice<struct index_entry> entries = slice<struct index_entry>::reserve(10);
 	// first slot used for root
 	entries.size = 1;
-	entries[0].name = root_name;
-	entries[0].namelen = root_namelen;
-	entries[0].total_namelen = root_namelen;
+	entries[0].name_ = root;
+	entries[0].total_namelen = root->length;
 	entries[0].parent = -1;
 	entries[0].d_type = DT_DIR;
 
@@ -441,7 +450,7 @@ enum index_error index_make(struct index* out_index, const char* root)
 	int next_dir = 0;
 
 	char buffer[256];
-	strcpy(buffer, root_name);
+	strcpy(buffer, root->cstr);
 	size_t parent = 0;
 
 	while (d) {
@@ -506,14 +515,14 @@ enum index_error index_make(struct index* out_index, const char* root)
 		entries = entries.ensure_capacity(entries.size + 1);
 		entries.size++;
 		struct index_entry& last = entries.last();
-		cstrcpy(&last.name, &last.namelen, entry->d_name, 128);
-		last.total_namelen = last.namelen + entries[parent].total_namelen;
+		last.name_ = string::make(entry->d_name, 128);
+		last.total_namelen = last.namelen() + entries[parent].total_namelen;
 		last.total_namelen += 1; // account for '/'
 		last.parent = parent;
 		last.d_type = entry->d_type;
 
   debug("%s: entry #%lu %s namelen:%lu total_namelen:%lu\n", buffer, entries.size, entry->d_name,
-		last.namelen,
+		last.namelen(),
 		last.total_namelen);
 	}
 
@@ -533,12 +542,12 @@ struct navigator {
 	slice<struct index> index_list;
 	// TODO: currently opened files
 
-	void rmindex(const char* root)
+	// FIXME CHANGE TO VIEW
+	void rmindex(stringview root)
 	{
-		size_t rootlen = strnlen(root, 64);
 		for (int i = 0; i < index_list.size; i++) {
 			struct index* index = index_list.at(i);
-			if (strncmp(index->root(), root, rootlen) == 0) {
+			if (index->root().eq(root)) {
 				index->dealloc();
 				index_list = index_list.remove(i);
 				return;
@@ -546,14 +555,14 @@ struct navigator {
 		}
 	}
 
-	enum index_error addindex(const char* root)
+	enum index_error addindex(string* root)
 	{
 		struct index index;
 		enum index_error e = index_make(&index, root);
 		if (e != index_error_none) {
 			return e;
 		}
-		rmindex(root);
+		rmindex(stringview::make(root));
 		index_list = append(index_list, index);
 		return index_error_none;
 	}
@@ -574,7 +583,7 @@ int navigation_manualtest(int argc, char** argv)
 
 	struct navigator navigator;
 	memset(&navigator, 0, sizeof(navigator));
-	enum index_error r = navigator.addindex(argv[1]);
+	enum index_error r = navigator.addindex(string::make(argv[1], 256));
 
 	switch (r) {
 	case index_error_none:
@@ -604,14 +613,15 @@ int navigation_manualtest(int argc, char** argv)
 		}
 	}
 
-	slice<int> matches = index_find_all_matches(index, argv[2], match_anywhere);
+	string* look_pattern = string::make(argv[2], 128);
+	slice<int> matches = index_find_all_matches(index, stringview::make(look_pattern), match_anywhere);
 	printf("%d matches\n", matches.size);
 	for (int i = 0; i < matches.size; i++) {
 		index_copy_complete_name(buffer, index.entries, matches[i]);
 		puts(buffer);
-//		printf("%s %s %s %lu/%lu\n", buffer, e.name, dtype_name(e.d_type), e.namelen, e.total_namelen);
 	}
 	matches.dealloc();
+	free(look_pattern);
 
 	exit:
 	navigator.dealloc();
@@ -684,15 +694,17 @@ void navigation_autotest()
 	struct navigator navigator = {};
 	struct index index;
 	slice<int> matches;
+	string* pattern;
 
-	enum index_error r = navigator.addindex(test_dirs[0]);
+	enum index_error r = navigator.addindex(string::make(test_dirs[0], 256));
 	if (r != index_error_none) {
 		puts("error");
 		goto cleanup;
 	}
 
 	index = navigator.index_list[0];
-	matches = index_find_all_matches(index, "ff", match_anywhere);
+	pattern = string::make("ff", 128);
+	matches = index_find_all_matches(index, stringview::make(pattern), match_anywhere);
 
 	printf("%d matches\n", matches.size);
 	char buffer[256];
@@ -702,6 +714,7 @@ void navigation_autotest()
 	}
 	matches.dealloc();
 	navigator.dealloc();
+	free(pattern);
 
 	cleanup:
 	while (f-- != test_files) {
