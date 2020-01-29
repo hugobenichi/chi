@@ -332,7 +332,7 @@ void cstrcpy(char** dst, size_t* dstlen, const char* src, size_t maxn)
 	size_t len = strnlen(src, maxn);
 	*dst = mcopy(src, len + 1 /* null byte */);
 	*dstlen = len;
-	dst[len] = '\0';
+	(*dst)[len] = '\0';
 }
 
 struct index_entry {
