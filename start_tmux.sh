@@ -16,8 +16,8 @@ tmux new-window -P -n 'Build'
 
 [ - $LOGS ] || touch $LOGS
 
-tmux new-window -P -n 'Log'
-tmux send-keys "tail -f " $LOGS C-m
+tmux new-window -P -n 'Run'
+tmux send-keys "./build/nav ./src" C-m
 
 tmux select-window -t $SESSION:1
 tmux -2 attach-session -t $SESSION
