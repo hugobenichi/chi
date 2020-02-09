@@ -10,10 +10,7 @@ WARNINGS+=-Wno-unused-const-variable
 CFLAGS=-I./src -g $(WARNINGS)
 
 OUTDIR=build
-SOURCES=./src/*.c
-#OBJECTS=$(SOURCES:.c=.o)
-#OBJS1=$(patsubst ./src/%.c,$(OUTDIR)/%.o,./src/*.c)
-OBJS1=$(patsubst ./src/%.c,$(OUTDIR)/%.o,$(SOURCES))
+SOURCES=./src/*.cpp
 OBJS3=\
 	$(OUTDIR)/main.o \
   $(OUTDIR)/config.o \
@@ -41,7 +38,7 @@ builddir:
 	mkdir -p $(OUTDIR)
 
 # TODO: add all header files as sources too !
-$(OUTDIR)/%.o: src/%.c
+$(OUTDIR)/%.o: src/%.cpp
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 $(OUTDIR)/$(EXEC): $(OBJS3)

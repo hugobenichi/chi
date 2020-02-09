@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <base.h>
+
 #define __stringize1(x) #x
 #define __stringize2(x) __stringize1(x)
 #define __LOC__ __FILE__ ":" __stringize2(__LINE__)
@@ -15,57 +17,6 @@
 #define debug(fmt, ...) if_debug printf(__LOC__ "#%s(): " fmt, __func__, ##__VA_ARGS__)
 
 #define DEBUG 0
-
-template <typename T>
-void swap(T& a, T& b)
-{
-	T t = a;
-	a = b;
-	b = t;
-}
-
-template <typename T>
-T* mcopy(const T* src, size_t srclen)
-{
-	T* src_copy = (T*) malloc(srclen);
-	memcpy(src_copy, src, srclen);
-	return src_copy;
-}
-
-void* debug_malloc(const char* loc, const char* func, size_t size) {
-	printf("%s %s: malloc(%lu)\n", loc, func, size);
-	return malloc(size);
-}
-
-void* debug_realloc(const char* loc, const char* func, void* ptr, size_t size) {
-	printf("%s %s: realloc(%p, %lu)\n", loc, func, ptr, size);
-	if (1) {
-		return realloc(ptr, size);
-	} else {
-		void* new_ptr = malloc(size);
-		if (new_ptr && ptr) {
-			memcpy(new_ptr, ptr, size);
-			free(ptr);
-		}
-		return new_ptr;
-	}
-}
-
-#if DEBUG
-#define realloc(ptr, size) debug_realloc(__LOC__, __func__, ptr, size)
-#define malloc(size) debug_malloc(__LOC__, __func__, size)
-#endif
-
-size_t array_find_capacity(size_t current, size_t needed)
-{
-	static unsigned int capacity_scaling = 4;
-	static unsigned int capacity_min = 16;
-	if (current == 0)
-		current = capacity_min;
-	while (current <= needed)
-		current = current * capacity_scaling;
-	return current;
-}
 
 //#define array_append(array, array_size, obj) memcpy(array + sizeof(array[0]) * *(array_size)++, obj, sizeof(array[0]))
 #define array_append(array, array_size, obj) array_append_proto((void*)array, array_size, obj, sizeof(array[0]))

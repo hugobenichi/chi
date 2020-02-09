@@ -28,7 +28,7 @@ int log_formatted_message(const char *format, ...)
 
 	int s = LOG_BUFFER_SIZE;
 	char buffer[s];
-	va_list(args);
+	va_list args;
 	va_start(args, format);
 	int r = vsnprintf(buffer, s, format, args);
 	va_end(args);
